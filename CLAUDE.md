@@ -8,6 +8,11 @@ Text Adventure Handler MCP is a Model Context Protocol (MCP) server built with F
 
 **Core Architecture**: This is an MCP server, not a client application. All functionality is exposed via MCP tools and resources that external AI agents can call.
 
+## Environment and testing
+
+- **Always use UV to test out Python files, functions, and tests.**
+- **Create and use a test db, not a user's db.**
+
 ## Tools
 
 ### Context7
@@ -88,6 +93,7 @@ pip install -e .
 **Stat Modification**: The `modify_stat()` tool allows increasing or decreasing character stats during gameplay. Use positive values to increase (e.g., from training) or negative values to decrease (e.g., from drinking alcohol, exhaustion). Stats are automatically clamped to adventure-defined min/max bounds.
 
 **Session Summaries**:
+
 - `summarize_progress()`: Call when user ends a play session. AI provides a concise summary (2-4 sentences), list of key events, and character changes.
 - `get_adventure_summary()`: Retrieves all previous summaries in chronological order, allowing AI to recap "the story so far" when continuing an adventure.
 

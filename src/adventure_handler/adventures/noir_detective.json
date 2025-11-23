@@ -39,27 +39,81 @@
       "name": "character_names",
       "description": "Suspect and NPC names for detective noir",
       "categories": {
-        "suspect": ["Tommy 'The Fox' Rodriguez", "Lana Diamond", "Vincent 'Vinny' Carbone", "Jazz Sally", "The Russian"],
-        "detective": ["Jack Noir", "Scarlet Lane", "Detective Marlowe", "Gumshoe Murphy", "Inspector Shadow"],
-        "underworld": ["Don Roselli", "Frankie Three-Fingers", "Silk Danny", "Big Tony", "The Butcher"]
+        "suspect": [
+          "Tommy 'The Fox' Rodriguez",
+          "Lana Diamond",
+          "Vincent 'Vinny' Carbone",
+          "Jazz Sally",
+          "The Russian"
+        ],
+        "detective": [
+          "Jack Noir",
+          "Scarlet Lane",
+          "Detective Marlowe",
+          "Gumshoe Murphy",
+          "Inspector Shadow"
+        ],
+        "underworld": [
+          "Don Roselli",
+          "Frankie Three-Fingers",
+          "Silk Danny",
+          "Big Tony",
+          "The Butcher"
+        ]
       }
     },
     {
       "name": "location_names",
       "description": "Locations in the noir city",
       "categories": {
-        "crime_scene": ["Warehouse District", "Abandoned Factory", "Dark Alley", "Rooftop", "Underground Bunker"],
-        "establishment": ["The Golden Dragon", "Blue Lotus Bar", "Velvet Room", "Chinatown Market", "Police Precinct"],
-        "safe_place": ["My Office", "Hotel Lobby", "Train Station", "Library", "Church"]
+        "crime_scene": [
+          "Warehouse District",
+          "Abandoned Factory",
+          "Dark Alley",
+          "Rooftop",
+          "Underground Bunker"
+        ],
+        "establishment": [
+          "The Golden Dragon",
+          "Blue Lotus Bar",
+          "Velvet Room",
+          "Chinatown Market",
+          "Police Precinct"
+        ],
+        "safe_place": [
+          "My Office",
+          "Hotel Lobby",
+          "Train Station",
+          "Library",
+          "Church"
+        ]
       }
     },
     {
       "name": "item_names",
       "description": "Evidence and objects in the noir world",
       "categories": {
-        "evidence": ["Jade Dragon Figurine", "Bloody Handkerchief", "Love Letter", "Casino Chip", "Coded Ledger"],
-        "weapon": ["Revolver", "Knife", "Brass Knuckles", "Poison Vial", "Blackjack"],
-        "clue": ["Cryptic Note", "Business Card", "Key to Safety Box", "Photograph", "Testimony"]
+        "evidence": [
+          "Jade Dragon Figurine",
+          "Bloody Handkerchief",
+          "Love Letter",
+          "Casino Chip",
+          "Coded Ledger"
+        ],
+        "weapon": [
+          "Revolver",
+          "Knife",
+          "Brass Knuckles",
+          "Poison Vial",
+          "Blackjack"
+        ],
+        "clue": [
+          "Cryptic Note",
+          "Business Card",
+          "Key to Safety Box",
+          "Photograph",
+          "Testimony"
+        ]
       }
     }
   ],

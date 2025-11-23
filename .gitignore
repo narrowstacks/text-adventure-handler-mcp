@@ -152,3 +152,6 @@ adventure_handler.db
 *.swp
 *.swo
 *~
+
+# server
+*.db

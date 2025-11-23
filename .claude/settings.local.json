@@ -8,7 +8,8 @@
       "Bash(timeout 3 uv run:*)",
       "Bash(uv run ruff:*)",
       "Bash(uv pip install:*)",
-      "Bash(uv run pytest:*)"
+      "Bash(uv run pytest:*)",
+      "Bash(python -m py_compile:*)"
     ],
     "deny": [],
     "ask": [

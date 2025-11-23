@@ -36,7 +36,7 @@
   ],
   "word_lists": [
     {
-      "name": "ship_locations",
+      "name": "location_names",
       "description": "Areas within the derelict ship",
       "categories": {
         "engineering": [
@@ -83,7 +83,7 @@
           "Genetics Lab",
           "Viral Storage",
           "Autopsy Room",
-          "Observation Gallery",
+          "Observation Gallery"
         ],
         "starting_locations": [
           "USL-01 - Docking Bay 2",
@@ -91,6 +91,7 @@
           "Borealis M-99 - Life Support Bay 3",
           "024 Proxy Fleet - Hangar Bay 5",
           "Aegis J-101 - Escape Pod Hangar"
+        ]
       }
     },
     {
@@ -121,6 +122,60 @@
           "Initiating Lockdown",
           "Decrypting Data",
           "Stabilizing Core"
+        ]
+      }
+    },
+    {
+      "name": "character_names",
+      "description": "Crew members, corporate officials, and mutated experiments",
+      "categories": {
+        "crew": [
+          "Dr. Keeley",
+          "Chief Engineer Roth",
+          "Captain Vasquez",
+          "Science Officer Chen",
+          "Medical Officer Hayes"
+        ],
+        "corporate": [
+          "Claims Adjuster Reynolds",
+          "VP Marlowe",
+          "Security Chief Vance",
+          "Project Lead Holloway",
+          "Corporate Liaison Sterling"
+        ],
+        "abomination": [
+          "Subject-7",
+          "The Amalgam",
+          "The Hive",
+          "Patient Zero",
+          "The Choir"
+        ]
+      }
+    },
+    {
+      "name": "item_names",
+      "description": "Evidence, equipment, and horror artifacts",
+      "categories": {
+        "evidence": [
+          "Flight Recorder",
+          "Experiment Log",
+          "Crew Manifest",
+          "Corporate Memo",
+          "Genetic Sample"
+        ],
+        "equipment": [
+          "Environmental Suit",
+          "Plasma Cutter",
+          "Scanner Array",
+          "Repair Kit",
+          "Containment Field Generator"
+        ],
+        "horror": [
+          "Specimen Jar",
+          "Mutated Tissue",
+          "Contamination Warning",
+          "Biometric Implant",
+          "Viral Vial"
         ]
       }
     },

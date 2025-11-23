@@ -56,18 +56,54 @@
       "name": "location_names",
       "description": "Names of dungeon chambers and passages",
       "categories": {
-        "chamber": ["Hall of Shadows", "Chamber of Echoes", "Vault of Whispers", "Throne of Crystal", "Treasury of Ages"],
-        "passage": ["Winding Corridor", "Narrow Passage", "Grand Hallway", "Secret Tunnel", "Spiraling Staircase"],
-        "danger_zone": ["Dragon's Lair", "Cursed Altar", "Trap-Filled Hall", "Grave of Kings", "Abyss of Despair"]
+        "chamber": [
+          "Hall of Shadows",
+          "Chamber of Echoes",
+          "Vault of Whispers",
+          "Throne of Crystal",
+          "Treasury of Ages"
+        ],
+        "passage": [
+          "Winding Corridor",
+          "Narrow Passage",
+          "Grand Hallway",
+          "Secret Tunnel",
+          "Spiraling Staircase"
+        ],
+        "danger_zone": [
+          "Dragon's Lair",
+          "Cursed Altar",
+          "Trap-Filled Hall",
+          "Grave of Kings",
+          "Abyss of Despair"
+        ]
       }
     },
     {
       "name": "item_names",
       "description": "Treasure and magical item names",
       "categories": {
-        "weapon": ["Dragonslayer", "Frostbite", "Heartseeker", "Soulrender", "Starlight"],
-        "armor": ["Mithril Plate", "Dragonhide Cloak", "Ring of Protection", "Helm of Wisdom", "Boots of Speed"],
-        "artifact": ["Crystal of Power", "Amulet of Ancients", "Tome of Secrets", "Crown of Kings", "Orb of Destiny"]
+        "weapon": [
+          "Dragonslayer",
+          "Frostbite",
+          "Heartseeker",
+          "Soulrender",
+          "Starlight"
+        ],
+        "armor": [
+          "Mithril Plate",
+          "Dragonhide Cloak",
+          "Ring of Protection",
+          "Helm of Wisdom",
+          "Boots of Speed"
+        ],
+        "artifact": [
+          "Crystal of Power",
+          "Amulet of Ancients",
+          "Tome of Secrets",
+          "Crown of Kings",
+          "Orb of Destiny"
+        ]
       }
     }
   ],

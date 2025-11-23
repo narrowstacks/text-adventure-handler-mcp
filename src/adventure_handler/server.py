@@ -23,7 +23,6 @@ async def initial_instructions() -> dict:
     """
     Get instructions for starting a text adventure session.
     Call this tool first to understand the workflow and available options.
-    ONLY for pure actions that don't require intermediate AI text generation. Ensure commands cannot conflict and can be safely chained without breaking the story flow.
     """
     await db.init_db()  # Ensure DB is ready
     adventures = await db.list_adventures()
@@ -120,6 +119,9 @@ async def narrator_thought(
 async def execute_batch(session_id: str, commands: list[dict]) -> dict:
     """
     Execute multiple commands in sequence.
+    ONLY for pure actions that don't require intermediate AI text generation from you. 
+    Ensure commands cannot conflict and can be safely chained without breaking the story flow.
+
     
     Args:
         session_id: The game session
@@ -201,6 +203,94 @@ async def list_sessions(limit: int = 20) -> list[dict]:
 
 
 @mcp.tool()
+async def generate_initial_content(adventure_id: str) -> dict:
+    """
+    Generate a prompt and guidance for AI to create custom initial story, words, and characters.
+
+    This tool provides the context needed for you (the AI) to generate:
+    - A custom initial story (instead of using the predefined one)
+    - Custom character names and details
+    - Custom location descriptions
+
+    After calling this tool, generate your custom content and then call start_adventure()
+    with the generated_story, generated_characters, and/or generated_locations parameters.
+
+    Returns a prompt template and adventure context to guide AI generation.
+    """
+    await db.init_db()
+
+    adventure = await db.get_adventure(adventure_id)
+    if not adventure:
+        return {
+            "error": f"Adventure {adventure_id} not found",
+            "suggestion": "Use list_adventures() to see available adventures"
+        }
+
+    # Extract word list info for generation guidance
+    word_lists_info = []
+    for wl in adventure.word_lists:
+        categories = list(wl.categories.keys())
+        word_lists_info.append({
+            "name": wl.name,
+            "description": wl.description,
+            "categories": categories,
+            "example_words": {cat: wl.categories[cat][:3] for cat in categories}
+        })
+
+    # Create the generation prompt
+    generation_prompt = f"""You are generating a custom opening scene for the adventure "{adventure.title}".
+
+## Adventure Context
+**Description**: {adventure.description}
+
+**Story Prompt**: {adventure.prompt}
+
+**Character Stats Available**: {', '.join(s.name for s in adventure.stats)}
+Stat Ranges: {'; '.join(f'{s.name}: {s.min_value}-{s.max_value}' for s in adventure.stats)}
+
+**Available Word Lists for Inspiration**:
+{json.dumps(word_lists_info, indent=2)}
+
+## Task
+Generate the following as JSON in this exact format:
+
+{{
+  "initial_story": "A compelling 2-3 paragraph opening that hooks the player. Include atmosphere, setting, and sense of adventure.",
+  "initial_location": "The name/description of where the story begins. Can use {{word_list_name}} or {{word_list_name.category}} placeholders for dynamic variation.",
+  "suggested_characters": [
+    {{
+      "name": "Character Name",
+      "description": "Brief description of appearance, role, and personality",
+      "location": "Where they are located initially",
+      "properties": {{"hostile": false, "quest_giver": true}}
+    }}
+  ],
+  "suggested_locations": [
+    {{
+      "name": "Location Name",
+      "description": "Atmospheric description of this place",
+      "connected_to": ["Adjacent location names"]
+    }}
+  ],
+  "narrative_guidance": "A brief note for the storyteller about tone, pacing, and key themes to maintain"
+}}
+
+Generate only valid JSON, no markdown formatting or extra text."""
+
+    return {
+        "adventure_id": adventure_id,
+        "adventure_title": adventure.title,
+        "generation_prompt": generation_prompt,
+        "next_step": "Generate custom content using the prompt above, then call start_adventure() with the generated_story, generated_characters, and generated_locations parameters",
+        "example_usage": {
+            "step1": "AI generates JSON using the generation_prompt",
+            "step2": "AI calls start_adventure(adventure_id='{adventure_id}', generated_story='...', generated_characters=[...], generated_locations=[...])",
+            "step3": "Session starts with custom-generated opening content"
+        }
+    }
+
+
+@mcp.tool()
 async def continue_adventure(session_id: str) -> dict:
     """
     Continue an existing adventure session.
@@ -244,14 +334,27 @@ async def start_adventure(
     character_name: str = None,
     roll_stats: bool = False,
     custom_stats: dict[str, int] = None,
+    generated_story: str = None,
+    generated_locations: list[dict] = None,
+    generated_characters: list[dict] = None,
 ) -> dict:
     """
     Start a new game session with character customization.
     Returns session_id and initial game state.
+
+    Args:
+        adventure_id: The adventure to start
+        randomize_initial: If True, use randomize_word substitution on templates (default: True)
+        character_name: Optional player character name
+        roll_stats: If True, roll stats using 4d6 drop lowest
+        custom_stats: Optional dict of stat_name -> value for custom stat assignment
+        generated_story: Optional AI-generated initial story (overrides adventure's initial_story)
+        generated_locations: Optional list of AI-generated Location dicts to create in the world
+        generated_characters: Optional list of AI-generated Character dicts to create in the world
     """
     # Ensure DB is initialized
     await db.init_db()
-    
+
     if not await db.get_adventure(adventure_id):
         return {"error": f"Adventure {adventure_id} not found"}
 
@@ -285,16 +388,59 @@ async def start_adventure(
                         stat_def.min_value, min(stat_def.max_value, value)
                     )
 
-    # Process templates
-    if randomize_initial:
-        initial_location = process_template(adventure.initial_location, adventure)
-        initial_story = process_template(adventure.initial_story, adventure)
-        session.state.location = initial_location
+    # Determine initial location and story
+    if generated_story:
+        # Use AI-generated story
+        initial_story = generated_story
+        # Extract location from adventure (or use generated if provided)
+        if generated_locations and len(generated_locations) > 0:
+            initial_location = generated_locations[0].get("name", adventure.initial_location)
+        else:
+            initial_location = adventure.initial_location
     else:
-        initial_location = adventure.initial_location
-        initial_story = adventure.initial_story
+        # Use predefined adventure story with optional template processing
+        if randomize_initial:
+            initial_location = process_template(adventure.initial_location, adventure)
+            initial_story = process_template(adventure.initial_story, adventure)
+        else:
+            initial_location = adventure.initial_location
+            initial_story = adventure.initial_story
 
+    session.state.location = initial_location
     await db.update_player_state(session_id, session.state)
+
+    # Create generated locations if provided
+    if generated_locations:
+        for loc_data in generated_locations:
+            try:
+                location = Location(
+                    id=str(uuid.uuid4()),
+                    session_id=session_id,
+                    name=loc_data.get("name", f"Location {uuid.uuid4()}"),
+                    description=loc_data.get("description", "A mysterious place"),
+                    connected_to=loc_data.get("connected_to", []),
+                    properties=loc_data.get("properties", {}),
+                )
+                await db.add_location(location)
+            except Exception as e:
+                print(f"Warning: Failed to create location: {e}")
+
+    # Create generated characters if provided
+    if generated_characters:
+        for char_data in generated_characters:
+            try:
+                character = Character(
+                    id=str(uuid.uuid4()),
+                    session_id=session_id,
+                    name=char_data.get("name", f"NPC {uuid.uuid4()}"),
+                    description=char_data.get("description", "A mysterious figure"),
+                    location=char_data.get("location", initial_location),
+                    stats=char_data.get("stats", {}),
+                    properties=char_data.get("properties", {}),
+                )
+                await db.add_character(character)
+            except Exception as e:
+                print(f"Warning: Failed to create character: {e}")
 
     result = {
         "session_id": session_id,
@@ -307,6 +453,12 @@ async def start_adventure(
 
     if character_name:
         result["character_name"] = character_name
+
+    if generated_characters:
+        result["generated_characters"] = len(generated_characters)
+
+    if generated_locations:
+        result["generated_locations"] = len(generated_locations)
 
     return result
 
@@ -1000,12 +1152,16 @@ async def load_sample_adventures():
 
             required_fields = ["id", "title", "description", "prompt", "stats", "word_lists", "initial_location", "initial_story"]
             if not all(key in adv_data for key in required_fields):
+                print(f"Skipping {file_path.name}: Missing required fields. Has: {list(adv_data.keys())}")
                 continue
 
             stats = [StatDefinition(**s) for s in adv_data.pop("stats")]
             word_lists = [WordList(**wl) for wl in adv_data.pop("word_lists")]
+            # Ensure starting_hp is present, default to 10 if missing
+            if "starting_hp" not in adv_data:
+                adv_data["starting_hp"] = 10
             adventure = Adventure(stats=stats, word_lists=word_lists, **adv_data)
             await db.add_adventure(adventure)
-            print(f"Loaded adventure: {adventure.title} ({adventure.id})")
+            print(f"Loaded adventure: {adventure.title} ({adventure.id}) - HP: {adventure.starting_hp}")
         except Exception as e:
             print(f"Error loading adventure from {file_path.name}: {e}")

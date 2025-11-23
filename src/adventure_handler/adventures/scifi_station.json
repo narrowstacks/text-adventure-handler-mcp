@@ -39,7 +39,13 @@
       "name": "character_names",
       "description": "Crew member names and alien species names",
       "categories": {
-        "human_crew": ["Commander James", "Dr. Sarah Chen", "Engineer Marcus", "Dr. Yuki Tanaka", "Lieutenant Alex"],
+        "human_crew": [
+          "Commander James",
+          "Dr. Sarah Chen",
+          "Engineer Marcus",
+          "Dr. Yuki Tanaka",
+          "Lieutenant Alex"
+        ],
         "alien": ["Zyx'theta", "Krell-7", "Orion Prime", "Vex'shar", "Tau'rix"],
         "android": ["ARIA", "NEXUS", "ECHO", "PRISM", "DELTA"]
       }
@@ -48,18 +54,54 @@
       "name": "location_names",
       "description": "Station sectors and facility names",
       "categories": {
-        "sector": ["Sector Alpha", "Sector Delta", "Sector Omega", "Observation Deck", "Quantum Lab"],
-        "facility": ["Life Support Station", "Engineering Core", "Medical Bay", "Armory", "Science Lab"],
-        "danger_zone": ["Reactor Core", "Derelict Hangar", "Quarantine Zone", "Void Airlock", "Radiation Sector"]
+        "sector": [
+          "Sector Alpha",
+          "Sector Delta",
+          "Sector Omega",
+          "Observation Deck",
+          "Quantum Lab"
+        ],
+        "facility": [
+          "Life Support Station",
+          "Engineering Core",
+          "Medical Bay",
+          "Armory",
+          "Science Lab"
+        ],
+        "danger_zone": [
+          "Reactor Core",
+          "Derelict Hangar",
+          "Quarantine Zone",
+          "Void Airlock",
+          "Radiation Sector"
+        ]
       }
     },
     {
       "name": "item_names",
       "description": "Equipment and technology names",
       "categories": {
-        "weapon": ["Plasma Rifle", "Photon Blaster", "Energy Sword", "Missile Launcher", "Tesla Cannon"],
-        "tech": ["Holo-Communicator", "Quantum Scanner", "Neural Interface", "Repair Droid", "Cloaking Device"],
-        "artifact": ["Ancient Artifact", "Alien Device", "Energy Core", "Data Archive", "Warp Stabilizer"]
+        "weapon": [
+          "Plasma Rifle",
+          "Photon Blaster",
+          "Energy Sword",
+          "Missile Launcher",
+          "Tesla Cannon"
+        ],
+        "tech": [
+          "Holo-Communicator",
+          "Quantum Scanner",
+          "Neural Interface",
+          "Repair Droid",
+          "Cloaking Device"
+        ],
+        "artifact": [
+          "Ancient Artifact",
+          "Alien Device",
+          "Energy Core",
+          "Data Archive",
+          "Warp Stabilizer"
+        ]
       }
     }
   ],
