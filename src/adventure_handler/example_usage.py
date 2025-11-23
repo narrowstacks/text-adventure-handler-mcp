@@ -8,7 +8,6 @@ Run this script to:
 """
 
 from adventure_handler.server import db, load_sample_adventures
-from adventure_handler.models import Adventure, StatDefinition
 
 
 def main():
@@ -100,7 +99,7 @@ _result = {
 """
     from adventure_handler.server import python_eval
     batch_result = python_eval("session_demo", batch_code)
-    print(f"✓ Batch operation result:")
+    print("✓ Batch operation result:")
     print(f"  Success: {batch_result.get('success')}")
     if batch_result.get('result'):
         print(f"  Result: {batch_result['result']}")

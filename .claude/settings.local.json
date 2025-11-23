@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:gofastmcp.com)",
-      "Read(//Users/aaronanderson/GitHub/**)"
+      "Bash(uvx:*)",
+      "Bash(uvx:*)",
+      "Bash(uv run python:*)",
+      "Bash(timeout 3 uv run:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv pip install:*)"
     ],
     "deny": [],
     "ask": []

@@ -84,3 +84,47 @@ class ActionResult(BaseModel):
     outcome: str  # AI-generated story outcome
     score_change: int = 0
     state_changes: dict[str, Any] = {}
+
+
+class Character(BaseModel):
+    """A dynamically created NPC or character in the game world."""
+    id: str
+    session_id: str
+    name: str
+    description: str
+    location: str  # Where this character is currently located
+    stats: dict[str, int] = {}  # Optional stats for interaction
+    properties: dict[str, Any] = {}  # Custom properties (hostile, friendly, quest_giver, etc.)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class Location(BaseModel):
+    """A dynamically created location in the game world."""
+    id: str
+    session_id: str
+    name: str
+    description: str
+    connected_to: list[str] = []  # List of location names/IDs that connect to this one
+    properties: dict[str, Any] = {}  # Custom properties (locked, hidden, dangerous, etc.)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class Item(BaseModel):
+    """A dynamically created item in the game world."""
+    id: str
+    session_id: str
+    name: str
+    description: str
+    location: Optional[str] = None  # Where the item is located (None if in player inventory)
+    properties: dict[str, Any] = {}  # Custom properties (usable, consumable, key_item, etc.)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class SessionSummary(BaseModel):
+    """A summary of a game session for story continuity."""
+    id: str
+    session_id: str
+    summary: str  # AI-generated summary of the session
+    key_events: list[str] = []  # Important story beats
+    character_changes: list[str] = []  # Notable character developments
+    created_at: datetime = Field(default_factory=datetime.now)
