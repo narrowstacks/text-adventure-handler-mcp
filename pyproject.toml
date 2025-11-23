@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "text-adventure-handler-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "MCP server for interactive text adventures with persistent game state, dice-based action resolution, and dynamic content generation"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,9 @@ dev = [
 [tool.setuptools]
 packages = ["adventure_handler"]
 package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+adventure_handler = ["adventures/*.json"]
 
 [tool.ruff]
 line-length = 100

@@ -10,7 +10,10 @@ from .models import Adventure, GameSession, PlayerState, Action, StatDefinition,
 class AdventureDB:
     """SQLite database for adventure handler."""
 
-    def __init__(self, db_path: str = "adventure_handler.db"):
+    def __init__(self, db_path: Optional[str] = None):
+        if db_path is None:
+            # Default to user's home directory for persistence across uvx runs
+            db_path = Path.home() / ".text-adventure-handler" / "adventure_handler.db"
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
