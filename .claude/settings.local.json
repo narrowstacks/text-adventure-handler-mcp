@@ -8,10 +8,13 @@
       "Bash(timeout 3 uv run:*)",
       "Bash(uv run ruff:*)",
       "Bash(uv pip install:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(uv run pytest:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
   }
 }
