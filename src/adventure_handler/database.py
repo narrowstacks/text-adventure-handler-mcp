@@ -1,10 +1,10 @@
 """SQLite database operations for adventure handler."""
 import json
-import sqlite3
+import aiosqlite
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from .models import Adventure, GameSession, PlayerState, Action, StatDefinition, WordList, Character, Location, Item, SessionSummary
+from .models import Adventure, GameSession, PlayerState, Action, StatDefinition, WordList, Character, Location, Item, SessionSummary, InventoryItem, QuestStatus, NarratorThought, Memory
 
 
 class AdventureDB:
@@ -16,18 +16,16 @@ class AdventureDB:
             db_path = Path.home() / ".text-adventure-handler" / "adventure_handler.db"
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._init_db()
 
-    def _get_conn(self) -> sqlite3.Connection:
+    def _get_conn(self) -> aiosqlite.Connection:
         """Get database connection with row factory."""
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
+        conn = aiosqlite.connect(str(self.db_path))
         return conn
 
-    def _init_db(self):
+    async def init_db(self):
         """Initialize database schema."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS adventures (
                     id TEXT PRIMARY KEY,
@@ -35,6 +33,7 @@ class AdventureDB:
                     description TEXT,
                     prompt TEXT NOT NULL,
                     stats JSON NOT NULL,
+                    starting_hp INTEGER DEFAULT 10,
                     word_lists JSON DEFAULT '[]',
                     initial_location TEXT NOT NULL,
                     initial_story TEXT NOT NULL,
@@ -42,7 +41,21 @@ class AdventureDB:
                 )
                 """
             )
-            conn.execute(
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS narrator_thoughts (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    thought TEXT NOT NULL,
+                    story_status TEXT NOT NULL,
+                    plan TEXT NOT NULL,
+                    user_behavior TEXT NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES game_sessions(id)
+                )
+                """
+            )
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS game_sessions (
                     id TEXT PRIMARY KEY,
@@ -53,21 +66,25 @@ class AdventureDB:
                 )
                 """
             )
-            conn.execute(
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS player_state (
                     session_id TEXT PRIMARY KEY,
+                    hp INTEGER DEFAULT 10,
+                    max_hp INTEGER DEFAULT 10,
                     score INTEGER DEFAULT 0,
                     location TEXT NOT NULL,
                     stats JSON NOT NULL,
                     inventory JSON NOT NULL,
+                    quests JSON DEFAULT '[]',
+                    relationships JSON DEFAULT '{}',
                     custom_data JSON,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (session_id) REFERENCES game_sessions(id)
                 )
                 """
             )
-            conn.execute(
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS action_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +99,7 @@ class AdventureDB:
                 )
                 """
             )
-            conn.execute(
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS characters (
                     id TEXT PRIMARY KEY,
@@ -92,12 +109,20 @@ class AdventureDB:
                     location TEXT NOT NULL,
                     stats JSON DEFAULT '{}',
                     properties JSON DEFAULT '{}',
+                    memories JSON DEFAULT '[]',
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (session_id) REFERENCES game_sessions(id)
                 )
                 """
             )
-            conn.execute(
+            
+            # Migration for existing databases (idempotent-ish)
+            try:
+                await conn.execute("ALTER TABLE characters ADD COLUMN memories JSON DEFAULT '[]'")
+            except Exception:
+                pass # Column likely exists
+
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS locations (
                     id TEXT PRIMARY KEY,
@@ -111,7 +136,7 @@ class AdventureDB:
                 )
                 """
             )
-            conn.execute(
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS items (
                     id TEXT PRIMARY KEY,
@@ -125,7 +150,7 @@ class AdventureDB:
                 )
                 """
             )
-            conn.execute(
+            await conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS session_summaries (
                     id TEXT PRIMARY KEY,
@@ -138,18 +163,18 @@ class AdventureDB:
                 )
                 """
             )
-            conn.commit()
+            await conn.commit()
 
-    def add_adventure(self, adventure: Adventure) -> None:
+    async def add_adventure(self, adventure: Adventure) -> None:
         """Add a new adventure template."""
         stats_json = json.dumps([s.model_dump() for s in adventure.stats])
         word_lists_json = json.dumps([w.model_dump() for w in adventure.word_lists])
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 INSERT OR REPLACE INTO adventures
-                (id, title, description, prompt, stats, word_lists, initial_location, initial_story)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, title, description, prompt, stats, starting_hp, word_lists, initial_location, initial_story)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     adventure.id,
@@ -157,26 +182,28 @@ class AdventureDB:
                     adventure.description,
                     adventure.prompt,
                     stats_json,
+                    adventure.starting_hp,
                     word_lists_json,
                     adventure.initial_location,
                     adventure.initial_story,
                 ),
             )
-            conn.commit()
+            await conn.commit()
 
-    def get_adventure(self, adventure_id: str) -> Optional[Adventure]:
+    async def get_adventure(self, adventure_id: str) -> Optional[Adventure]:
         """Retrieve an adventure by ID."""
-        with self._get_conn() as conn:
-            row = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM adventures WHERE id = ?", (adventure_id,)
-            ).fetchone()
+            ) as cursor:
+                row = await cursor.fetchone()
 
         if not row:
             return None
 
         stats = [StatDefinition(**s) for s in json.loads(row["stats"])]
         word_lists_data = json.loads(row["word_lists"]) if "word_lists" in row.keys() else []
-        # Handle legacy case where column might be null if added later (though we rebuild DB)
         if word_lists_data is None:
              word_lists_data = []
              
@@ -188,21 +215,25 @@ class AdventureDB:
             description=row["description"],
             prompt=row["prompt"],
             stats=stats,
+            starting_hp=row["starting_hp"] if "starting_hp" in row.keys() and row["starting_hp"] is not None else 10,
             word_lists=word_lists,
             initial_location=row["initial_location"],
             initial_story=row["initial_story"],
         )
 
-    def list_adventures(self) -> list[dict]:
+    async def list_adventures(self) -> list[dict]:
         """List all available adventures."""
-        with self._get_conn() as conn:
-            rows = conn.execute("SELECT id, title, description FROM adventures").fetchall()
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute("SELECT id, title, description FROM adventures") as cursor:
+                rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-    def list_sessions(self, limit: int = 20) -> list[dict]:
+    async def list_sessions(self, limit: int = 20) -> list[dict]:
         """List recent game sessions with adventure info and last played time."""
-        with self._get_conn() as conn:
-            rows = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 """
                 SELECT
                     gs.id,
@@ -219,62 +250,86 @@ class AdventureDB:
                 LIMIT ?
                 """,
                 (limit,),
-            ).fetchall()
+            ) as cursor:
+                rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
-    def create_session(self, session_id: str, adventure_id: str) -> bool:
+    async def create_session(self, session_id: str, adventure_id: str) -> bool:
         """Create a new game session."""
-        adventure = self.get_adventure(adventure_id)
+        adventure = await self.get_adventure(adventure_id)
         if not adventure:
             return False
 
         now = datetime.now().isoformat()
         stats = {stat.name: stat.default_value for stat in adventure.stats}
 
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 INSERT INTO game_sessions (id, adventure_id, created_at, last_played)
                 VALUES (?, ?, ?, ?)
                 """,
                 (session_id, adventure_id, now, now),
             )
-            conn.execute(
+            await conn.execute(
                 """
                 INSERT INTO player_state
-                (session_id, location, stats, inventory, custom_data)
-                VALUES (?, ?, ?, ?, ?)
+                (session_id, hp, max_hp, location, stats, inventory, quests, relationships, custom_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
+                    adventure.starting_hp,
+                    adventure.starting_hp,
                     adventure.initial_location,
                     json.dumps(stats),
                     json.dumps([]),
+                    json.dumps([]),
+                    json.dumps({}),
                     json.dumps({}),
                 ),
             )
-            conn.commit()
+            await conn.commit()
         return True
 
-    def get_session(self, session_id: str) -> Optional[GameSession]:
+    async def get_session(self, session_id: str) -> Optional[GameSession]:
         """Get a game session."""
-        with self._get_conn() as conn:
-            session_row = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM game_sessions WHERE id = ?", (session_id,)
-            ).fetchone()
+            ) as cursor:
+                session_row = await cursor.fetchone()
+            
             if not session_row:
                 return None
 
-            state_row = conn.execute(
+            async with conn.execute(
                 "SELECT * FROM player_state WHERE session_id = ?", (session_id,)
-            ).fetchone()
+            ) as cursor:
+                state_row = await cursor.fetchone()
+
+        # Safe loading of JSON fields with defaults
+        inventory_data = json.loads(state_row["inventory"])
+        inventory = [InventoryItem(**i) for i in inventory_data]
+        
+        quests_data = json.loads(state_row["quests"]) if "quests" in state_row.keys() and state_row["quests"] else []
+        quests = [QuestStatus(**q) for q in quests_data]
+
+        relationships = json.loads(state_row["relationships"]) if "relationships" in state_row.keys() and state_row["relationships"] else {}
+        hp = state_row["hp"] if "hp" in state_row.keys() and state_row["hp"] is not None else 10
+        max_hp = state_row["max_hp"] if "max_hp" in state_row.keys() and state_row["max_hp"] is not None else 10
 
         state = PlayerState(
             session_id=session_id,
+            hp=hp,
+            max_hp=max_hp,
             score=state_row["score"],
             location=state_row["location"],
             stats=json.loads(state_row["stats"]),
-            inventory=json.loads(state_row["inventory"]),
+            inventory=inventory,
+            quests=quests,
+            relationships=relationships,
             custom_data=json.loads(state_row["custom_data"] or "{}"),
         )
 
@@ -286,32 +341,39 @@ class AdventureDB:
             state=state,
         )
 
-    def update_player_state(self, session_id: str, state: PlayerState) -> bool:
+    async def update_player_state(self, session_id: str, state: PlayerState) -> bool:
         """Update player state."""
-        with self._get_conn() as conn:
-            conn.execute(
+        inventory_json = json.dumps([i.model_dump() for i in state.inventory])
+        quests_json = json.dumps([q.model_dump() for q in state.quests])
+        
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 UPDATE player_state SET
-                score = ?, location = ?, stats = ?, inventory = ?,
-                custom_data = ?, updated_at = CURRENT_TIMESTAMP
+                hp = ?, max_hp = ?, score = ?, location = ?, stats = ?, inventory = ?,
+                quests = ?, relationships = ?, custom_data = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE session_id = ?
                 """,
                 (
+                    state.hp,
+                    state.max_hp,
                     state.score,
                     state.location,
                     json.dumps(state.stats),
-                    json.dumps(state.inventory),
+                    inventory_json,
+                    quests_json,
+                    json.dumps(state.relationships),
                     json.dumps(state.custom_data),
                     session_id,
                 ),
             )
-            conn.commit()
+            await conn.commit()
         return True
 
-    def update_last_played(self, session_id: str) -> bool:
+    async def update_last_played(self, session_id: str) -> bool:
         """Update the last_played timestamp for a session."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 UPDATE game_sessions
                 SET last_played = ?
@@ -319,44 +381,53 @@ class AdventureDB:
                 """,
                 (datetime.now().isoformat(), session_id),
             )
-            conn.commit()
+            await conn.commit()
         return True
 
-    def add_action(self, session_id: str, action: Action, outcome: str, score_change: int) -> None:
+    async def add_action(self, session_id: str, action: Action, outcome: str, score_change: int, dice_roll: Optional[dict] = None) -> None:
         """Record a player action."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 INSERT INTO action_history
-                (session_id, action_text, stat_used, outcome, score_change)
-                VALUES (?, ?, ?, ?, ?)
+                (session_id, action_text, stat_used, dice_roll, outcome, score_change)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (session_id, action.action_text, action.stat_used, outcome, score_change),
+                (
+                    session_id, 
+                    action.action_text, 
+                    action.stat_used, 
+                    json.dumps(dice_roll) if dice_roll else "{}", 
+                    outcome, 
+                    score_change
+                ),
             )
-            conn.commit()
+            await conn.commit()
 
-    def get_history(self, session_id: str, limit: int = 50) -> list[dict]:
+    async def get_history(self, session_id: str, limit: int = 50) -> list[dict]:
         """Get action history for a session."""
-        with self._get_conn() as conn:
-            rows = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 """
                 SELECT action_text, stat_used, outcome, score_change, timestamp
                 FROM action_history WHERE session_id = ?
                 ORDER BY timestamp DESC LIMIT ?
                 """,
                 (session_id, limit),
-            ).fetchall()
+            ) as cursor:
+                rows = await cursor.fetchall()
         return [dict(row) for row in reversed(rows)]
 
     # Character management
-    def add_character(self, character: Character) -> None:
+    async def add_character(self, character: Character) -> None:
         """Add a dynamically created character to the session."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 INSERT OR REPLACE INTO characters
-                (id, session_id, name, description, location, stats, properties, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (id, session_id, name, description, location, stats, properties, memories, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     character.id,
@@ -366,20 +437,26 @@ class AdventureDB:
                     character.location,
                     json.dumps(character.stats),
                     json.dumps(character.properties),
+                    json.dumps([m.model_dump(mode='json') for m in character.memories]),
                     character.created_at.isoformat(),
                 ),
             )
-            conn.commit()
+            await conn.commit()
 
-    def get_character(self, character_id: str) -> Optional[Character]:
+    async def get_character(self, character_id: str) -> Optional[Character]:
         """Retrieve a character by ID."""
-        with self._get_conn() as conn:
-            row = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM characters WHERE id = ?", (character_id,)
-            ).fetchone()
+            ) as cursor:
+                row = await cursor.fetchone()
 
         if not row:
             return None
+
+        memories_data = json.loads(row["memories"]) if "memories" in row.keys() and row["memories"] else []
+        memories = [Memory(**m) for m in memories_data]
 
         return Character(
             id=row["id"],
@@ -389,19 +466,26 @@ class AdventureDB:
             location=row["location"],
             stats=json.loads(row["stats"]),
             properties=json.loads(row["properties"]),
+            memories=memories,
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 
-    def list_characters(self, session_id: str) -> list[Character]:
+    async def list_characters(self, session_id: str) -> list[Character]:
         """List all characters in a session."""
-        with self._get_conn() as conn:
-            rows = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM characters WHERE session_id = ? ORDER BY created_at",
                 (session_id,),
-            ).fetchall()
+            ) as cursor:
+                rows = await cursor.fetchall()
 
-        return [
-            Character(
+        characters = []
+        for row in rows:
+            memories_data = json.loads(row["memories"]) if "memories" in row.keys() and row["memories"] else []
+            memories = [Memory(**m) for m in memories_data]
+            
+            characters.append(Character(
                 id=row["id"],
                 session_id=row["session_id"],
                 name=row["name"],
@@ -409,18 +493,18 @@ class AdventureDB:
                 location=row["location"],
                 stats=json.loads(row["stats"]),
                 properties=json.loads(row["properties"]),
+                memories=memories,
                 created_at=datetime.fromisoformat(row["created_at"]),
-            )
-            for row in rows
-        ]
+            ))
+        return characters
 
-    def update_character(self, character: Character) -> bool:
+    async def update_character(self, character: Character) -> bool:
         """Update an existing character."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 UPDATE characters SET
-                name = ?, description = ?, location = ?, stats = ?, properties = ?
+                name = ?, description = ?, location = ?, stats = ?, properties = ?, memories = ?
                 WHERE id = ?
                 """,
                 (
@@ -429,24 +513,25 @@ class AdventureDB:
                     character.location,
                     json.dumps(character.stats),
                     json.dumps(character.properties),
+                    json.dumps([m.model_dump(mode='json') for m in character.memories]),
                     character.id,
                 ),
             )
-            conn.commit()
+            await conn.commit()
         return True
 
-    def delete_character(self, character_id: str) -> bool:
+    async def delete_character(self, character_id: str) -> bool:
         """Delete a character."""
-        with self._get_conn() as conn:
-            conn.execute("DELETE FROM characters WHERE id = ?", (character_id,))
-            conn.commit()
+        async with self._get_conn() as conn:
+            await conn.execute("DELETE FROM characters WHERE id = ?", (character_id,))
+            await conn.commit()
         return True
 
     # Location management
-    def add_location(self, location: Location) -> None:
+    async def add_location(self, location: Location) -> None:
         """Add a dynamically created location to the session."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 INSERT OR REPLACE INTO locations
                 (id, session_id, name, description, connected_to, properties, created_at)
@@ -462,14 +547,16 @@ class AdventureDB:
                     location.created_at.isoformat(),
                 ),
             )
-            conn.commit()
+            await conn.commit()
 
-    def get_location(self, location_id: str) -> Optional[Location]:
+    async def get_location(self, location_id: str) -> Optional[Location]:
         """Retrieve a location by ID."""
-        with self._get_conn() as conn:
-            row = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM locations WHERE id = ?", (location_id,)
-            ).fetchone()
+            ) as cursor:
+                row = await cursor.fetchone()
 
         if not row:
             return None
@@ -484,13 +571,15 @@ class AdventureDB:
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 
-    def list_locations(self, session_id: str) -> list[Location]:
+    async def list_locations(self, session_id: str) -> list[Location]:
         """List all locations in a session."""
-        with self._get_conn() as conn:
-            rows = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM locations WHERE session_id = ? ORDER BY created_at",
                 (session_id,),
-            ).fetchall()
+            ) as cursor:
+                rows = await cursor.fetchall()
 
         return [
             Location(
@@ -505,10 +594,10 @@ class AdventureDB:
             for row in rows
         ]
 
-    def update_location(self, location: Location) -> bool:
+    async def update_location(self, location: Location) -> bool:
         """Update an existing location."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 UPDATE locations SET
                 name = ?, description = ?, connected_to = ?, properties = ?
@@ -522,21 +611,21 @@ class AdventureDB:
                     location.id,
                 ),
             )
-            conn.commit()
+            await conn.commit()
         return True
 
-    def delete_location(self, location_id: str) -> bool:
+    async def delete_location(self, location_id: str) -> bool:
         """Delete a location."""
-        with self._get_conn() as conn:
-            conn.execute("DELETE FROM locations WHERE id = ?", (location_id,))
-            conn.commit()
+        async with self._get_conn() as conn:
+            await conn.execute("DELETE FROM locations WHERE id = ?", (location_id,))
+            await conn.commit()
         return True
 
     # Item management
-    def add_item(self, item: Item) -> None:
+    async def add_item(self, item: Item) -> None:
         """Add a dynamically created item to the session."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 INSERT OR REPLACE INTO items
                 (id, session_id, name, description, location, properties, created_at)
@@ -552,14 +641,16 @@ class AdventureDB:
                     item.created_at.isoformat(),
                 ),
             )
-            conn.commit()
+            await conn.commit()
 
-    def get_item(self, item_id: str) -> Optional[Item]:
+    async def get_item(self, item_id: str) -> Optional[Item]:
         """Retrieve an item by ID."""
-        with self._get_conn() as conn:
-            row = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM items WHERE id = ?", (item_id,)
-            ).fetchone()
+            ) as cursor:
+                row = await cursor.fetchone()
 
         if not row:
             return None
@@ -574,19 +665,22 @@ class AdventureDB:
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 
-    def list_items(self, session_id: str, location: Optional[str] = None) -> list[Item]:
+    async def list_items(self, session_id: str, location: Optional[str] = None) -> list[Item]:
         """List all items in a session, optionally filtered by location."""
-        with self._get_conn() as conn:
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
             if location is not None:
-                rows = conn.execute(
+                async with conn.execute(
                     "SELECT * FROM items WHERE session_id = ? AND location = ? ORDER BY created_at",
                     (session_id, location),
-                ).fetchall()
+                ) as cursor:
+                    rows = await cursor.fetchall()
             else:
-                rows = conn.execute(
+                async with conn.execute(
                     "SELECT * FROM items WHERE session_id = ? ORDER BY created_at",
                     (session_id,),
-                ).fetchall()
+                ) as cursor:
+                    rows = await cursor.fetchall()
 
         return [
             Item(
@@ -601,10 +695,10 @@ class AdventureDB:
             for row in rows
         ]
 
-    def update_item(self, item: Item) -> bool:
+    async def update_item(self, item: Item) -> bool:
         """Update an existing item."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 UPDATE items SET
                 name = ?, description = ?, location = ?, properties = ?
@@ -618,21 +712,21 @@ class AdventureDB:
                     item.id,
                 ),
             )
-            conn.commit()
+            await conn.commit()
         return True
 
-    def delete_item(self, item_id: str) -> bool:
+    async def delete_item(self, item_id: str) -> bool:
         """Delete an item."""
-        with self._get_conn() as conn:
-            conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
-            conn.commit()
+        async with self._get_conn() as conn:
+            await conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            await conn.commit()
         return True
 
     # Session summary management
-    def add_session_summary(self, summary: SessionSummary) -> None:
+    async def add_session_summary(self, summary: SessionSummary) -> None:
         """Add a session summary."""
-        with self._get_conn() as conn:
-            conn.execute(
+        async with self._get_conn() as conn:
+            await conn.execute(
                 """
                 INSERT INTO session_summaries
                 (id, session_id, summary, key_events, character_changes, created_at)
@@ -647,15 +741,38 @@ class AdventureDB:
                     summary.created_at.isoformat(),
                 ),
             )
-            conn.commit()
+            await conn.commit()
 
-    def get_session_summaries(self, session_id: str) -> list[SessionSummary]:
+    async def log_thought(self, thought: NarratorThought) -> None:
+        """Log an internal thought from the narrator."""
+        async with self._get_conn() as conn:
+            await conn.execute(
+                """
+                INSERT INTO narrator_thoughts
+                (id, session_id, thought, story_status, plan, user_behavior, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    thought.id,
+                    thought.session_id,
+                    thought.thought,
+                    thought.story_status,
+                    thought.plan,
+                    thought.user_behavior,
+                    thought.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_session_summaries(self, session_id: str) -> list[SessionSummary]:
         """Get all summaries for a session in chronological order."""
-        with self._get_conn() as conn:
-            rows = conn.execute(
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
                 "SELECT * FROM session_summaries WHERE session_id = ? ORDER BY created_at",
                 (session_id,),
-            ).fetchall()
+            ) as cursor:
+                rows = await cursor.fetchall()
 
         return [
             SessionSummary(

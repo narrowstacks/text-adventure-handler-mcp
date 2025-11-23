@@ -27,25 +27,37 @@ class WordList(BaseModel):
     categories: dict[str, list[str]]  # category_name -> [words]
 
 
-class Adventure(BaseModel):
-    """An adventure template."""
+class InventoryItem(BaseModel):
+    """An item in the player's inventory with rich properties."""
+    id: str
+    name: str
+    description: str
+    quantity: int = 1
+    properties: dict[str, Any] = {} # e.g. {"damage": 5, "heal": 10, "equippable": True}
+
+
+class QuestStatus(BaseModel):
+    """Tracking for a quest."""
     id: str
     title: str
     description: str
-    prompt: str  # System prompt for AI to generate story beats
-    stats: list[StatDefinition]
-    word_lists: list[WordList]  # Predefined words for dynamic generation
-    initial_location: str
-    initial_story: str
+    status: str = "active" # active, completed, failed
+    objectives: list[str]
+    completed_objectives: list[str] = []
+    rewards: dict[str, Any] = {}
 
 
 class PlayerState(BaseModel):
     """Current player state in a game session."""
     session_id: str
+    hp: int = 10
+    max_hp: int = 10
     score: int = 0
     location: str
     stats: dict[str, int]  # stat_name -> value
-    inventory: list[str] = []
+    inventory: list[InventoryItem] = []
+    quests: list[QuestStatus] = []
+    relationships: dict[str, int] = {} # npc_name -> value (-100 to 100)
     custom_data: dict[str, Any] = {}
 
 
@@ -68,6 +80,19 @@ class GameSession(BaseModel):
     state: PlayerState
 
 
+class Adventure(BaseModel):
+    """An adventure template."""
+    id: str
+    title: str
+    description: str
+    prompt: str  # System prompt for AI to generate story beats
+    stats: list[StatDefinition]
+    starting_hp: int = 10
+    word_lists: list[WordList]  # Predefined words for dynamic generation
+    initial_location: str
+    initial_story: str
+
+
 class Action(BaseModel):
     """Player action in the game."""
     session_id: str
@@ -86,6 +111,17 @@ class ActionResult(BaseModel):
     state_changes: dict[str, Any] = {}
 
 
+class Memory(BaseModel):
+    """A memory held by a character."""
+    id: str
+    description: str
+    timestamp: datetime
+    type: str = "observation"  # observation, interaction, rumor
+    importance: int = 1  # 1-10, determines retention and influence
+    tags: list[str] = []
+    related_entities: list[str] = []  # IDs of related characters/items
+
+
 class Character(BaseModel):
     """A dynamically created NPC or character in the game world."""
     id: str
@@ -95,6 +131,7 @@ class Character(BaseModel):
     location: str  # Where this character is currently located
     stats: dict[str, int] = {}  # Optional stats for interaction
     properties: dict[str, Any] = {}  # Custom properties (hostile, friendly, quest_giver, etc.)
+    memories: list[Memory] = []
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -127,4 +164,15 @@ class SessionSummary(BaseModel):
     summary: str  # AI-generated summary of the session
     key_events: list[str] = []  # Important story beats
     character_changes: list[str] = []  # Notable character developments
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class NarratorThought(BaseModel):
+    """Internal thought process of the AI narrator."""
+    id: str
+    session_id: str
+    thought: str
+    story_status: str # on_track, off_rails, user_deviating, completed, stalled
+    plan: str
+    user_behavior: str # cooperative, creative, disruptive, cheating
     created_at: datetime = Field(default_factory=datetime.now)
