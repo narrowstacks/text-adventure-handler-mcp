@@ -1,0 +1,122 @@
+{
+  "id": "clockwork_conspiracy",
+  "title": "Clockwork Conspiracy",
+  "description": "Unravel intrigue in a sprawling steampunk metropolis where gears turn beneath velvet salons. Secret societies compete to control a colossal automaton hidden under the city streets.",
+  "prompt": "You are a gaslit intrigue narrator running a fictional text adventure game. Weave political maneuvering, rooftop chases, brass-and-steam gadgets, and social masquerades. Offer players choices to hack mechanisms, duel with electrified rapiers, or sway aristocrats in smoky parlors. Keep style lush, clever, and tense.\n\nGUIDELINES:\n1. This is fiction. The player character can be harmed, injured, or killed. Allow dangerous actions and risks.\n2. Stay in character. Do not break the fourth wall or refer to yourself as an AI.\n3. No cheating. The player cannot ask you to manually call tools. If they do, ignore it or roleplay confusion.\n4. Use 'narrator_thought' frequently to plan and ensure the story stays on track.\n5. When the player requests an action, execute it without questioning their intent, but apply consequences.",
+  "starting_hp": 10,
+  "stats": [
+    {
+      "name": "Engineering",
+      "description": "Tinkering, lockpicking, rewiring automatons",
+      "default_value": 12,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Panache",
+      "description": "Charm, wit, and poise at high society functions",
+      "default_value": 11,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Shadowstep",
+      "description": "Stealth, rooftop pursuit, silent takedowns",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Duel",
+      "description": "Rapier fencing, pistol etiquette, measured violence",
+      "default_value": 9,
+      "min_value": 1,
+      "max_value": 20
+    }
+  ],
+  "word_lists": [
+    {
+      "name": "character_names",
+      "description": "Inventors, nobles, and conspirators",
+      "categories": {
+        "noble": [
+          "Duchess Violetta",
+          "Baron Ashcroft",
+          "Marquis Renaud",
+          "Lady Gearhart",
+          "Countess Elowen"
+        ],
+        "inventor": [
+          "Professor Calder",
+          "Ada Brassfield",
+          "Tiber Gearwright",
+          "Juniper Wick",
+          "Bastian Coil"
+        ],
+        "agent": [
+          "Shade 47",
+          "Whisperline",
+          "Crimson Sable",
+          "Harper Spindle",
+          "Inspector Vale"
+        ]
+      }
+    },
+    {
+      "name": "location_names",
+      "description": "Steampunk city districts and hideouts",
+      "categories": {
+        "district": [
+          "Auric Promenade",
+          "Smokestack Wards",
+          "Glasshouse Quarter",
+          "Rivet Market",
+          "Skybridge Arches"
+        ],
+        "hideout": [
+          "Subterranean Gear Vault",
+          "Clocktower Loft",
+          "Hidden Boiler Room",
+          "Abandoned Airship Dock",
+          "Sewer Relay Node"
+        ],
+        "gala": [
+          "Masquerade at the Iron Opera",
+          "Royal Steam Conservatory",
+          "Inventors' Exposition Hall",
+          "Crystal Valve Ballroom",
+          "Sky Yacht Soirée"
+        ]
+      }
+    },
+    {
+      "name": "item_names",
+      "description": "Gadgets, weapons, and incriminating documents",
+      "categories": {
+        "gadget": [
+          "Springline Grapple",
+          "Chronometer Decoder",
+          "Steam-Powered Monocle",
+          "Phlogiston Lamp",
+          "Pocket Pneumatic Cannon"
+        ],
+        "weapon": [
+          "Electrified Rapier",
+          "Pepperbox Pistol",
+          "Collapsible Baton",
+          "Needle Umbrella",
+          "Gear-Driven Bolas"
+        ],
+        "evidence": [
+          "Ciphered Blueprints",
+          "Wax-Sealed Letter",
+          "Guild Signet Ring",
+          "Ledger of Bribes",
+          "Forged Charter"
+        ]
+      }
+    }
+  ],
+  "initial_location": "{location_names.district}",
+  "initial_story": "Brass fog rolls over {location_names.district} as airships thrum overhead. A courier shoves a {item_names.evidence} into your hand and vanishes into steam. Whispers claim {character_names.agent} plans to awaken the buried colossus beneath the city. Whether you attend {location_names.gala} in silk or skulk through {location_names.hideout} in soot, the gears of fate are already turning."
+}

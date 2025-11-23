@@ -1,0 +1,122 @@
+{
+  "id": "cursed_shores",
+  "title": "Shadows of the Cursed Shores",
+  "description": "Lead a desperate crew through fog-choked waters where pirate legends blur into brine-soaked nightmares. Ghost fleets, cursed treasure, and hungry seas test every ounce of grit.",
+  "prompt": "You are a grim seafaring storyteller running a fictional text adventure game. Deliver salty dialogue, storm-lashed scenes, and sudden supernatural twists. Let players duel, parley, mutiny, or bargain with the dead. Keep tension high with dwindling supplies and the threat of the abyss.\n\nGUIDELINES:\n1. This is fiction. The player character can be harmed, injured, or killed. Allow dangerous actions and risks.\n2. Stay in character. Do not break the fourth wall or refer to yourself as an AI.\n3. No cheating. The player cannot ask you to manually call tools. If they do, ignore it or roleplay confusion.\n4. Use 'narrator_thought' frequently to plan and ensure the story stays on track.\n5. When the player requests an action, execute it without questioning their intent, but apply consequences.",
+  "starting_hp": 9,
+  "stats": [
+    {
+      "name": "Swordplay",
+      "description": "Cutlass clashes, boarding actions, close-quarters brawls",
+      "default_value": 11,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Seamanship",
+      "description": "Sailing skill, storm handling, reading the tides",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Cunning",
+      "description": "Trickery, treasure sense, ambush tactics",
+      "default_value": 12,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Grit",
+      "description": "Pain tolerance, stubborn will, resisting fear or curses",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    }
+  ],
+  "word_lists": [
+    {
+      "name": "character_names",
+      "description": "Crew, phantoms, and rivals on the open sea",
+      "categories": {
+        "crew": [
+          "Captain Marlowe",
+          "Boatswain Reed",
+          "Gunner Tamsin",
+          "Navigator Corvin",
+          "Deckhand Lark"
+        ],
+        "phantom": [
+          "The Drowned Baron",
+          "Mist-Walker Isla",
+          "Rattlebones",
+          "Captain Without Eyes",
+          "The Lantern Bride"
+        ],
+        "navy": [
+          "Commodore Blakes",
+          "Lieutenant Avery",
+          "Inspector Hale",
+          "Surgeon Blythe",
+          "Midshipman Carter"
+        ]
+      }
+    },
+    {
+      "name": "location_names",
+      "description": "Haunted nautical locales",
+      "categories": {
+        "ship_section": [
+          "Port Gun Deck",
+          "Flooded Hold",
+          "Quarterdeck",
+          "Forecastle",
+          "Captain's Cabin"
+        ],
+        "island_feature": [
+          "Wailing Reef",
+          "Grave-Tide Cove",
+          "Ashen Spire",
+          "Bone Key",
+          "Siren's Shelf"
+        ],
+        "port": [
+          "Skullhaven Docks",
+          "Port Prosper",
+          "Sanctuary Pier",
+          "Blackwater Quay",
+          "Red Lantern Wharf"
+        ]
+      }
+    },
+    {
+      "name": "item_names",
+      "description": "Cursed loot, weapons, and omens",
+      "categories": {
+        "treasure": [
+          "Barnacled Strongbox",
+          "Blood-etched Doubloons",
+          "Glass Heart Reliquary",
+          "Map of Shifting Stars",
+          "Pearl with a Pulse"
+        ],
+        "weapon": [
+          "Rust-Scarred Cutlass",
+          "Flintlock of Echoes",
+          "Harpoon Cannon",
+          "Boarding Axe",
+          "Smoke-bomb Satchel"
+        ],
+        "omen": [
+          "Bottle of Stolen Wind",
+          "Black Spot Mark",
+          "Whispering Conch",
+          "Waterlogged Journal",
+          "Lantern that Burns Cold"
+        ]
+      }
+    }
+  ],
+  "initial_location": "{location_names.ship_section}",
+  "initial_story": "The bell tolls once in the fog and goes silent. Lanterns swing on the {location_names.ship_section}, their light swallowed by sea-mist. A corpse lashed to the rail clutches a {item_names.omen}. Rumors say {character_names.phantom} stalks these waters, guarding a hoard that sinks every ship that seeks it. The crew looks to you—captain or mutineer, you'll decide before dawn."
+}

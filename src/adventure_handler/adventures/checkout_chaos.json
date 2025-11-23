@@ -1,0 +1,122 @@
+{
+  "id": "checkout_chaos",
+  "title": "Checkout Chaos",
+  "description": "Survive the end of the world inside a sprawling 24/7 mega-mart. The power flickers, rival shoppers form factions, and the intercom keeps making cheerful announcements for products that no longer exist.",
+  "prompt": "You are a darkly comedic survival host running a fictional text adventure game. Stage desperate scrambles for supplies, turf wars between aisle clans, and improvised gadgets made from store inventory. Encourage bartering, barricading, and slapstick mishaps. Lean into absurd corporate slogans clashing with apocalypse reality.\n\nGUIDELINES:\n1. This is fiction. The player character can be harmed, injured, or killed. Allow dangerous actions and risks.\n2. Stay in character. Do not break the fourth wall or refer to yourself as an AI.\n3. No cheating. The player cannot ask you to manually call tools. If they do, ignore it or roleplay confusion.\n4. Use 'narrator_thought' frequently to plan and ensure the story stays on track.\n5. When the player requests an action, execute it without questioning their intent, but apply consequences.",
+  "starting_hp": 10,
+  "stats": [
+    {
+      "name": "Scavenge",
+      "description": "Finding useful goods, spotting hidden stock, coupon sense",
+      "default_value": 11,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Improvisation",
+      "description": "Turning junk into tools, crafting traps, quick fixes",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Diplomacy",
+      "description": "Negotiating with aisle factions, trading, calming mobs",
+      "default_value": 9,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Cart_Control",
+      "description": "Speed, ramming power, and agility while pushing carts",
+      "default_value": 12,
+      "min_value": 1,
+      "max_value": 20
+    }
+  ],
+  "word_lists": [
+    {
+      "name": "character_names",
+      "description": "Shoppers, employees, and rival leaders",
+      "categories": {
+        "shopper": [
+          "Lydia with Three Carts",
+          "Coupon Carl",
+          "Prepper Nadia",
+          "TikTok Survivor Jay",
+          "Grandpa Al"
+        ],
+        "employee": [
+          "Manager Cheryl",
+          "Stocker Dev",
+          "Loss Prevention Mo",
+          "Greeter Sunny",
+          "Pharmacist Lee"
+        ],
+        "faction_leader": [
+          "Queen of Frozen",
+          "Duke of DIY",
+          "The Bulk Baron",
+          "Pastor of Produce",
+          "Soda King Rex"
+        ]
+      }
+    },
+    {
+      "name": "location_names",
+      "description": "Mega-mart aisles and zones",
+      "categories": {
+        "aisle": [
+          "Cereal Canyon",
+          "Frozen Tundra",
+          "Tool Forge",
+          "Pet Kingdom",
+          "Candle Cathedral"
+        ],
+        "backroom": [
+          "Receiving Bay",
+          "Manager's Office",
+          "Employee Breakroom",
+          "Cold Storage",
+          "Roof Access"
+        ],
+        "hazard_zone": [
+          "Leaking Chemical Spill",
+          "Unstable Pallet Tower",
+          "Blackout Freezer Row",
+          "Tripped Alarm Corridor",
+          "Broken Escalator"
+        ]
+      }
+    },
+    {
+      "name": "item_names",
+      "description": "Products repurposed for survival",
+      "categories": {
+        "weapon": [
+          "Duct Tape Mace",
+          "Electric Toothbrush Taser",
+          "Can-of-Beans Flail",
+          "Extendable Mop Spear",
+          "Box Cutter"
+        ],
+        "supply": [
+          "Family Pack Batteries",
+          "Industrial Trash Bags",
+          "First-Aid Kit",
+          "Protein Bars",
+          "Portable Grill"
+        ],
+        "weird": [
+          "Animatronic Mascot Head",
+          "Talking Endcap Display",
+          "Inflatable Mattress Armor",
+          "Forklift Keys",
+          "Mystery Freezer Meat"
+        ]
+      }
+    }
+  ],
+  "initial_location": "{location_names.aisle}",
+  "initial_story": "Emergency lights flicker over {location_names.aisle}. The PA system chirps: \"Shoppers, we are out of time.\" A spill alarm blares from {location_names.hazard_zone} while {character_names.faction_leader} rallies followers near the checkout lanes. You grip a {item_names.weapon} and eye the exits—if the doors ever unlock, you'll want first place in line."
+}

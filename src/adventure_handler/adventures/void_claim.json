@@ -39,30 +39,119 @@
       "name": "ship_locations",
       "description": "Areas within the derelict ship",
       "categories": {
-        "engineering": ["Reactor Core", "Coolant Flush", "Drive Shaft Delta", "Maintenance Crawlspace", "Engine Control"],
-        "crew_quarters": ["Cryo-Sleep Bay", "Mess Hall", "Captain's Quarters", "Med-Bay", "Observation Deck"],
-        "labs": ["Specimen Containment", "Genetics Lab", "Viral Storage", "Autopsy Room", "Observation Gallery"]
+        "engineering": [
+          "Reactor Core",
+          "Coolant Flush",
+          "Drive Shaft Delta",
+          "Maintenance Crawlspace",
+          "Engine Control",
+          "Reactor Control Room",
+          "Command Center",
+          "Engineering Bay",
+          "Medical Bay",
+          "Storage Room",
+          "Utility Room",
+          "Security Room",
+          "Reactor Control Room"
+        ],
+        "crew_quarters": [
+          "Cryo-Sleep Bay",
+          "Mess Hall",
+          "Captain's Quarters",
+          "Med-Bay",
+          "Observation Deck",
+          "Crew Bunks",
+          "Female Restroom",
+          "Male Restroom",
+          "Kitchen",
+          "Laundry Room",
+          "Rec Room",
+          "Library",
+          "Chapel",
+          "Gym"
+        ],
+        "command_center": [
+          "Command Center",
+          "Bridge",
+          "Control Room",
+          "Navigation Room",
+          "Communications Room",
+          "Sensor Room"
+        ],
+        "labs": [
+          "Specimen Containment",
+          "Genetics Lab",
+          "Viral Storage",
+          "Autopsy Room",
+          "Observation Gallery",
+        ],
+        "starting_locations": [
+          "USL-01 - Docking Bay 2",
+          "Eden I-325 - Cargo Bay 1",
+          "Borealis M-99 - Life Support Bay 3",
+          "024 Proxy Fleet - Hangar Bay 5",
+          "Aegis J-101 - Escape Pod Hangar"
       }
     },
     {
       "name": "tech_babble",
       "description": "Technobabble for system failures and logs",
       "categories": {
-        "error": ["Critical Cascade Failure", "Bio-Filter Desync", "Magnetic Containment Breach", "Neural Link Severed", "Hull Integrity Critical"],
-        "device": ["Quantum Flux Regulator", "Bio-Metric Scanner", "Plasma Injector", "Neural Interface", "Grav-Plating"],
-        "action": ["Rerouting Power", "Purging System", "Initiating Lockdown", "Decrypting Data", "Stabilizing Core"]
+        "error": [
+          "Critical Cascade Failure",
+          "Bio-Filter Desync",
+          "Magnetic Containment Breach",
+          "Neural Link Severed",
+          "Hull Integrity Critical"
+        ],
+        "device": [
+          "Quantum Flux Regulator",
+          "Bio-Metric Scanner",
+          "Plasma Injector",
+          "Neural Interface",
+          "Grav-Plating",
+          "Quantum Magnetic Clamp",
+          "Accumulator Array",
+          "Phased Power Distributor",
+          "Nanite Diagnosis Unit"
+        ],
+        "action": [
+          "Rerouting Power",
+          "Purging System",
+          "Initiating Lockdown",
+          "Decrypting Data",
+          "Stabilizing Core"
+        ]
       }
     },
     {
       "name": "corpse_findings",
       "description": "Items or details found on crew bodies",
       "categories": {
-        "personal": ["Picture of family", "Unsent letter", "Wedding ring", "Holy symbol", "Digital diary"],
-        "work": ["Keycard Level 2", "Maintenance Log", "Encrypted Drive", "Lab Sample", "Emergency flare"],
-        "horror": ["Missing eyes", "Fused to metal", "Strange fungal growth", "Self-inflicted wound", "Frozen in scream"]
+        "personal": [
+          "Picture of family",
+          "Unsent letter",
+          "Wedding ring",
+          "Holy symbol",
+          "Digital diary"
+        ],
+        "work": [
+          "Keycard Level 2",
+          "Maintenance Log",
+          "Encrypted Drive",
+          "Lab Sample",
+          "Emergency flare"
+        ],
+        "horror": [
+          "Missing eyes",
+          "Fused to metal",
+          "Strange fungal growth",
+          "Self-inflicted wound",
+          "Frozen in scream"
+        ]
       }
     }
   ],
-  "initial_location": "USC Aethelgard - Docking Bay 4",
+  "initial_location": "{location_names.starting_locations}",
   "initial_story": "The magnetic clamps of your shuttle engage with a bone-shaking thud against the hull of the USC Aethelgard. Silence follows. Your headset crackles: 'Investigator, this is Claims Adjuster Reynolds. We're reading zero life signs, but the reactor is hot. Get in, secure the flight recorder, and verify the crew status. Remember, if it's pilot error, we don't pay.' The airlock cycles, revealing a corridor bathed in flickering emergency strobes. The air tastes of ozone and copper."
 }
