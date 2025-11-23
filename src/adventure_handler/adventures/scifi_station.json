@@ -1,0 +1,67 @@
+{
+  "id": "scifi_station",
+  "title": "Station Anomaly",
+  "description": "Investigate strange events on a deep-space research station orbiting an unknown planet. Something has gone wrong, and the crew is counting on you.",
+  "prompt": "You are a sci-fi adventure master. Generate story beats involving technical problems, alien encounters, crew mysteries, and exploration of alien technology. Allow players to use equipment, override systems, and make discoveries. Balance investigation with action sequences. Create tension through resource limitations and time pressure.",
+  "stats": [
+    {
+      "name": "Piloting",
+      "description": "Vehicle and ship control, EVA maneuvering",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Technical",
+      "description": "Repair and hacking systems, engineering knowledge",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Combat",
+      "description": "Marksmanship and tactical combat",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Persuade",
+      "description": "Diplomacy, negotiation, and deception",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    }
+  ],
+  "word_lists": [
+    {
+      "name": "character_names",
+      "description": "Crew member names and alien species names",
+      "categories": {
+        "human_crew": ["Commander James", "Dr. Sarah Chen", "Engineer Marcus", "Dr. Yuki Tanaka", "Lieutenant Alex"],
+        "alien": ["Zyx'theta", "Krell-7", "Orion Prime", "Vex'shar", "Tau'rix"],
+        "android": ["ARIA", "NEXUS", "ECHO", "PRISM", "DELTA"]
+      }
+    },
+    {
+      "name": "location_names",
+      "description": "Station sectors and facility names",
+      "categories": {
+        "sector": ["Sector Alpha", "Sector Delta", "Sector Omega", "Observation Deck", "Quantum Lab"],
+        "facility": ["Life Support Station", "Engineering Core", "Medical Bay", "Armory", "Science Lab"],
+        "danger_zone": ["Reactor Core", "Derelict Hangar", "Quarantine Zone", "Void Airlock", "Radiation Sector"]
+      }
+    },
+    {
+      "name": "item_names",
+      "description": "Equipment and technology names",
+      "categories": {
+        "weapon": ["Plasma Rifle", "Photon Blaster", "Energy Sword", "Missile Launcher", "Tesla Cannon"],
+        "tech": ["Holo-Communicator", "Quantum Scanner", "Neural Interface", "Repair Droid", "Cloaking Device"],
+        "artifact": ["Ancient Artifact", "Alien Device", "Energy Core", "Data Archive", "Warp Stabilizer"]
+      }
+    }
+  ],
+  "initial_location": "{location_names.facility}",
+  "initial_story": "Alarms blare throughout the research station. The red emergency lights cast everything in a crimson hue. All communications are down, life support is degrading, and the last transmission mentioned {character_names.alien} in {location_names.danger_zone}. You are the station's best hope. You must investigate and restore order before it's too late."
+}

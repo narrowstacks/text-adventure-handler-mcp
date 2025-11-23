@@ -1,0 +1,67 @@
+{
+  "id": "noir_detective",
+  "title": "The Jade Dragon Case",
+  "description": "Solve a murder mystery in a gritty urban noir setting. The clues are cryptic, the suspects are unreliable, and everyone has something to hide.",
+  "prompt": "You are a noir detective story master. Create atmospheric investigation scenes with suspects, clues, and red herrings. Players can investigate crime scenes, interrogate suspects, follow leads, and gather evidence. Present moral ambiguities and let player choices shape the narrative. Some cases may have no perfect solution.",
+  "stats": [
+    {
+      "name": "Investigation",
+      "description": "Finding clues, analyzing evidence, pattern recognition",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Intimidate",
+      "description": "Threatening, coercion, aggressive interrogation",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Sneak",
+      "description": "Stealth, breaking and entering, undetected movement",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Street_Smarts",
+      "description": "Underground connections, street knowledge, bribes",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    }
+  ],
+  "word_lists": [
+    {
+      "name": "character_names",
+      "description": "Suspect and NPC names for detective noir",
+      "categories": {
+        "suspect": ["Tommy 'The Fox' Rodriguez", "Lana Diamond", "Vincent 'Vinny' Carbone", "Jazz Sally", "The Russian"],
+        "detective": ["Jack Noir", "Scarlet Lane", "Detective Marlowe", "Gumshoe Murphy", "Inspector Shadow"],
+        "underworld": ["Don Roselli", "Frankie Three-Fingers", "Silk Danny", "Big Tony", "The Butcher"]
+      }
+    },
+    {
+      "name": "location_names",
+      "description": "Locations in the noir city",
+      "categories": {
+        "crime_scene": ["Warehouse District", "Abandoned Factory", "Dark Alley", "Rooftop", "Underground Bunker"],
+        "establishment": ["The Golden Dragon", "Blue Lotus Bar", "Velvet Room", "Chinatown Market", "Police Precinct"],
+        "safe_place": ["My Office", "Hotel Lobby", "Train Station", "Library", "Church"]
+      }
+    },
+    {
+      "name": "item_names",
+      "description": "Evidence and objects in the noir world",
+      "categories": {
+        "evidence": ["Jade Dragon Figurine", "Bloody Handkerchief", "Love Letter", "Casino Chip", "Coded Ledger"],
+        "weapon": ["Revolver", "Knife", "Brass Knuckles", "Poison Vial", "Blackjack"],
+        "clue": ["Cryptic Note", "Business Card", "Key to Safety Box", "Photograph", "Testimony"]
+      }
+    }
+  ],
+  "initial_location": "{location_names.crime_scene}",
+  "initial_story": "Rain hammers the {location_names.crime_scene}. A body lies cold on the concrete floor, its right hand clutching a {item_names.evidence}. The deceased was a known associate of {character_names.suspect}. You light a cigarette and glance at your notes—there are whispers about connections to {character_names.underworld}. You begin your investigation, knowing that somewhere in this mess, the truth is buried."
+}

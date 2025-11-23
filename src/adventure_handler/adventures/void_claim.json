@@ -1,0 +1,67 @@
+{
+  "id": "void_claim",
+  "title": "The Void Claim",
+  "description": "As a ruthless insurance investigator, you board the drifting USC Aethelgard. The company demands answers: was it negligence, mutiny, or something worse? Uncover the dark secrets of experiments gone wrong in the deep void.",
+  "prompt": "You are a sci-fi mystery DM. The player is an insurance investigator exploring a derelict spaceship, the USC Aethelgard. The ship was used for unethical biological experiments on the crew. The atmosphere is claustrophobic, sterile, and terrifying. Guide the player through investigating the fate of the crew, retrieving data logs, and surviving the mutated results of the experiments. The player's goal is to assess 'liability' and 'payout status' while uncovering the horror. Maintain a tone of corporate cynicism mixed with visceral horror.",
+  "stats": [
+    {
+      "name": "Investigation",
+      "description": "Spotting clues, analyzing data, and deduction",
+      "default_value": 12,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Tech-Ops",
+      "description": "Hacking terminals, bypassing locks, using scanners",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Corporate Protocol",
+      "description": "Knowledge of regulations, bureaucracy, and negotiation",
+      "default_value": 14,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Survival",
+      "description": "Combat, physical feats, and hazard avoidance",
+      "default_value": 8,
+      "min_value": 1,
+      "max_value": 20
+    }
+  ],
+  "word_lists": [
+    {
+      "name": "ship_locations",
+      "description": "Areas within the derelict ship",
+      "categories": {
+        "engineering": ["Reactor Core", "Coolant Flush", "Drive Shaft Delta", "Maintenance Crawlspace", "Engine Control"],
+        "crew_quarters": ["Cryo-Sleep Bay", "Mess Hall", "Captain's Quarters", "Med-Bay", "Observation Deck"],
+        "labs": ["Specimen Containment", "Genetics Lab", "Viral Storage", "Autopsy Room", "Observation Gallery"]
+      }
+    },
+    {
+      "name": "tech_babble",
+      "description": "Technobabble for system failures and logs",
+      "categories": {
+        "error": ["Critical Cascade Failure", "Bio-Filter Desync", "Magnetic Containment Breach", "Neural Link Severed", "Hull Integrity Critical"],
+        "device": ["Quantum Flux Regulator", "Bio-Metric Scanner", "Plasma Injector", "Neural Interface", "Grav-Plating"],
+        "action": ["Rerouting Power", "Purging System", "Initiating Lockdown", "Decrypting Data", "Stabilizing Core"]
+      }
+    },
+    {
+      "name": "corpse_findings",
+      "description": "Items or details found on crew bodies",
+      "categories": {
+        "personal": ["Picture of family", "Unsent letter", "Wedding ring", "Holy symbol", "Digital diary"],
+        "work": ["Keycard Level 2", "Maintenance Log", "Encrypted Drive", "Lab Sample", "Emergency flare"],
+        "horror": ["Missing eyes", "Fused to metal", "Strange fungal growth", "Self-inflicted wound", "Frozen in scream"]
+      }
+    }
+  ],
+  "initial_location": "USC Aethelgard - Docking Bay 4",
+  "initial_story": "The magnetic clamps of your shuttle engage with a bone-shaking thud against the hull of the USC Aethelgard. Silence follows. Your headset crackles: 'Investigator, this is Claims Adjuster Reynolds. We're reading zero life signs, but the reactor is hot. Get in, secure the flight recorder, and verify the crew status. Remember, if it's pilot error, we don't pay.' The airlock cycles, revealing a corridor bathed in flickering emergency strobes. The air tastes of ozone and copper."
+}

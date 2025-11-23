@@ -1,0 +1,75 @@
+{
+  "id": "fantasy_dungeon",
+  "title": "The Crystal Caverns",
+  "description": "Explore a magical dungeon in search of the lost Crystal of Power. Navigate treacherous passages, overcome obstacles, and defeat creatures guarding ancient treasures.",
+  "prompt": "You are a fantasy dungeon master. Generate engaging story beats with environmental challenges, combat encounters, and puzzle-solving opportunities. Players can attempt any action, but success depends on stat checks. Describe vivid locations, atmospheric details, and offer meaningful choices that affect the narrative. Award points for clever solutions and brave actions.",
+  "stats": [
+    {
+      "name": "Strength",
+      "description": "Physical power and melee combat",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Dexterity",
+      "description": "Agility, reflexes, and ranged combat",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Intelligence",
+      "description": "Knowledge, magic, problem-solving",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Wisdom",
+      "description": "Perception, survival, intuition",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    },
+    {
+      "name": "Charisma",
+      "description": "Social influence and persuasion",
+      "default_value": 10,
+      "min_value": 1,
+      "max_value": 20
+    }
+  ],
+  "word_lists": [
+    {
+      "name": "character_names",
+      "description": "NPC names for dungeon encounters",
+      "categories": {
+        "dwarf": ["Thorin", "Gimli", "Durin", "Borin", "Oin"],
+        "elf": ["Legolas", "Elrond", "Tauriel", "Galadriel", "Arwen"],
+        "human": ["Aragorn", "Boromir", "Éowyn", "Denethor", "Grimbold"],
+        "goblin": ["Grishnák", "Moria", "Lurtz", "Shagrat", "Gothmog"]
+      }
+    },
+    {
+      "name": "location_names",
+      "description": "Names of dungeon chambers and passages",
+      "categories": {
+        "chamber": ["Hall of Shadows", "Chamber of Echoes", "Vault of Whispers", "Throne of Crystal", "Treasury of Ages"],
+        "passage": ["Winding Corridor", "Narrow Passage", "Grand Hallway", "Secret Tunnel", "Spiraling Staircase"],
+        "danger_zone": ["Dragon's Lair", "Cursed Altar", "Trap-Filled Hall", "Grave of Kings", "Abyss of Despair"]
+      }
+    },
+    {
+      "name": "item_names",
+      "description": "Treasure and magical item names",
+      "categories": {
+        "weapon": ["Dragonslayer", "Frostbite", "Heartseeker", "Soulrender", "Starlight"],
+        "armor": ["Mithril Plate", "Dragonhide Cloak", "Ring of Protection", "Helm of Wisdom", "Boots of Speed"],
+        "artifact": ["Crystal of Power", "Amulet of Ancients", "Tome of Secrets", "Crown of Kings", "Orb of Destiny"]
+      }
+    }
+  ],
+  "initial_location": "{location_names.chamber}",
+  "initial_story": "You stand at the mouth of a dark cavern. Cold air flows from within, and you can hear the faint echo of water dripping in the distance. Ancient runes glow faintly above the entrance, and you sense the pull of magic deep below. Somewhere in the darkness, a treasure awaits—or perhaps a trap set by {character_names}. The dungeon beckons."
+}

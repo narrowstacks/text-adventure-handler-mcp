@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:gofastmcp.com)",
+      "Read(//Users/aaronanderson/GitHub/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
