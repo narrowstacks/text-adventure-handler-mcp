@@ -3,7 +3,11 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 
-const DB_PATH = process.env.DB_PATH || path.join(os.homedir(), '.text-adventure-handler', 'adventure_handler.db');
+// Align env var with the Python server: prefer DB_PATH, then ADVENTURE_DB_PATH, then HOST_DB_PATH.
+// Expand ~ if provided so shell-style paths work in dev mode.
+const resolvePath = (p: string) => p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : path.resolve(p);
+const envDbPath = process.env.DB_PATH || process.env.ADVENTURE_DB_PATH || process.env.HOST_DB_PATH;
+const DB_PATH = envDbPath ? resolvePath(envDbPath) : path.join(os.homedir(), '.text-adventure-handler', 'adventure_handler.db');
 
 console.log(`Connecting to database at: ${DB_PATH}`);
 

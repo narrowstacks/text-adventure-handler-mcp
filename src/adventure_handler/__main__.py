@@ -28,7 +28,12 @@ def start_web_ui(open_browser=False, db_path=None):
     if db_path:
         host_db_path = Path(db_path).resolve()
     else:
-        host_db_path = (Path.home() / ".text-adventure-handler" / "adventure_handler.db").resolve()
+        # Respect externally provided ADVENTURE_DB_PATH so the Web UI shares the same DB
+        env_db_path = os.environ.get("ADVENTURE_DB_PATH")
+        if env_db_path:
+            host_db_path = Path(env_db_path).expanduser().resolve()
+        else:
+            host_db_path = (Path.home() / ".text-adventure-handler" / "adventure_handler.db").resolve()
 
     # Ensure directory exists so Docker doesn't fail/create root-owned dir
     host_db_path.parent.mkdir(parents=True, exist_ok=True)
