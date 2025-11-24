@@ -35,20 +35,29 @@ The project includes an optional web-based dashboard that provides a visual inte
 - Manage characters, locations, and items
 - Track game time and faction relationships
 
-### Quick Start with Web UI
+**Note:** The Web UI requires Docker and the source code repository. It is not currently packaged with the PyPI distribution.
 
-1. **Prerequisites**: Docker and Docker Compose
-2. **Initialize the MCP server first** to create the database:
-   ```bash
-   uv run python -m adventure_handler
-   # Press Ctrl+C after initialization
-   ```
-3. **Start the web interface**:
-   ```bash
-   cd web
-   docker-compose up --build
-   ```
-4. **Access the dashboard**: Open [http://localhost:3000](http://localhost:3000)
+### Running the Web UI
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/narrowstacks/text-adventure-handler-mcp.git
+    cd text-adventure-handler-mcp
+    ```
+
+2.  **Start using the helper CLI**:
+    You can use the included CLI to start the Web UI and the server together (requires `uv`):
+    ```bash
+    uv run python -m adventure_handler --web-ui --open-browser
+    ```
+
+3.  **Or manually with Docker Compose**:
+    ```bash
+    cd web
+    docker-compose up --build
+    ```
+
+The dashboard will be available at [http://localhost:3000](http://localhost:3000).
 
 ### Web UI Configuration
 
@@ -58,7 +67,7 @@ If your database is located elsewhere, update the `HOST_DB_PATH` environment var
 
 ```bash
 export HOST_DB_PATH="/path/to/your/adventure_handler.db"
-docker-compose up --build
+cd web && docker-compose up
 ```
 
 ### Development Mode
@@ -81,16 +90,14 @@ npm run dev
 
 ### Connecting to Claude Desktop
 
-To use this MCP server with Claude Desktop, you need to configure it in your Claude settings:
-
-#### 1. Locate Your Configuration File
+To use this MCP server with Claude Desktop, configure it in your settings file:
 
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-#### 2. Add Server Configuration
+#### 1. Basic Configuration (Recommended)
 
-**Option A: Using uvx (Recommended - no installation needed)**
+Uses `uvx` to fetch and run the latest version automatically.
 
 ```json
 {
@@ -103,24 +110,9 @@ To use this MCP server with Claude Desktop, you need to configure it in your Cla
 }
 ```
 
-**Option B: Run from local directory (for development)**
+#### 2. Run from GitHub (Latest Version)
 
-```json
-{
-  "mcpServers": {
-    "text-adventure": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "/path/to/text-adventure-handler-mcp",
-        "text-adventure-handler-mcp"
-      ]
-    }
-  }
-}
-```
-
-**Option C: Run from GitHub (latest version)**
+If you want to run the absolute latest version directly from the repository:
 
 ```json
 {
@@ -137,11 +129,9 @@ To use this MCP server with Claude Desktop, you need to configure it in your Cla
 }
 ```
 
-#### 3. Optional Configuration
+#### 3. Custom Database Location
 
-You can customize the server behavior with additional environment variables:
-
-**Custom Database Location**
+If you want to store your game data in a specific location (instead of the default `~/.text-adventure-handler/`), add the `ADVENTURE_DB_PATH` environment variable:
 
 ```json
 {
@@ -150,60 +140,37 @@ You can customize the server behavior with additional environment variables:
       "command": "uvx",
       "args": ["text-adventure-handler-mcp"],
       "env": {
-        "ADVENTURE_DB_PATH": "/custom/path/to/adventure_handler.db"
+        "ADVENTURE_DB_PATH": "/Users/username/my_games/adventure.db"
       }
     }
   }
 }
 ```
 
-**Enable Web Server**
+#### 4. Local Development Configuration
+
+If you have cloned the repository and want to use your local version:
 
 ```json
 {
   "mcpServers": {
-    "text-adventure": {
-      "command": "uvx",
-      "args": ["text-adventure-handler-mcp"],
-      "env": {
-        "ENABLE_WEB_SERVER": "true",
-        "WEB_SERVER_PORT": "8080"
-      }
+    "text-adventure-local": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "adventure_handler"
+      ],
+      "cwd": "/absolute/path/to/text-adventure-handler-mcp"
     }
   }
 }
 ```
 
-**Combined Configuration**
-
-```json
-{
-  "mcpServers": {
-    "text-adventure": {
-      "command": "uvx",
-      "args": ["text-adventure-handler-mcp"],
-      "env": {
-        "ADVENTURE_DB_PATH": "/custom/path/to/adventure_handler.db",
-        "ENABLE_WEB_SERVER": "true",
-        "WEB_SERVER_PORT": "8080"
-      }
-    }
-  }
-}
-```
-
-**Environment Variables:**
-- `ADVENTURE_DB_PATH`: Custom path to the SQLite database (default: `~/.text-adventure-handler/adventure_handler.db`)
-- `ENABLE_WEB_SERVER`: Set to `"true"` to enable the built-in web server (default: `"false"`)
-- `WEB_SERVER_PORT`: Port for the web server (default: `"8080"`)
-
-#### 4. Restart Claude Desktop
+#### 5. Restart Claude Desktop
 
 Completely quit and restart Claude Desktop for the changes to take effect.
-
-#### 5. Access Web UI (if enabled)
-
-If you enabled the web server, access it at [http://localhost:8080](http://localhost:8080) (or your custom port).
 
 ## Quick Start
 

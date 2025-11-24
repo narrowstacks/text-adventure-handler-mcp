@@ -27,6 +27,12 @@ Use context7 tools to get information about any API or library we use (such as F
 # Development mode (recommended)
 uv run python -m adventure_handler
 
+# Run with Web UI (requires Docker and local repo)
+uv run python -m adventure_handler --web-ui --open-browser
+
+# Run with custom DB path
+uv run python -m adventure_handler --db-path /path/to/db.sqlite
+
 # Or using the installed script
 uvx text-adventure-handler-mcp
 

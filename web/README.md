@@ -15,6 +15,15 @@ This is a web interface for the Text Adventure Handler MCP. It runs in tandem wi
 
 ## Running with Docker
 
+**Option 1: Using the CLI Helper (from project root)**
+
+If you have the full repository and `uv` installed:
+```bash
+uv run python -m adventure_handler --web-ui --open-browser
+```
+
+**Option 2: Manual Docker Compose**
+
 1.  Navigate to the `web` directory:
     ```bash
     cd web
