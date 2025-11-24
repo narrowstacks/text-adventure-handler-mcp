@@ -33,7 +33,7 @@ packages = ["adventure_handler"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-adventure_handler = ["adventures/*.json"]
+adventure_handler = ["adventures/*.json", "prompt_and_rules.json"]
 
 [tool.ruff]
 line-length = 100
