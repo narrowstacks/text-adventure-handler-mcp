@@ -167,9 +167,12 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
             
         try:
             # Call the tool function directly
-            # FastMCP tools are callable wrappers
+            # FastMCP tools are callable wrappers, but we need the underlying function
             func = tool_map[tool_name]
-            result = await func(**args)
+            if hasattr(func, "fn"):
+                 result = await func.fn(**args)
+            else:
+                 result = await func(**args)
             results.append({"tool": tool_name, "result": result})
         except Exception as e:
             results.append({"tool": tool_name, "error": str(e), "command_index": i})
@@ -538,10 +541,13 @@ async def take_action(session_id: str, action: str, stat_name: str = None, diffi
 
     # Perform dice check if stat is used
     if stat_name:
-        if stat_name not in session.state.stats:
+        # Case-insensitive lookup
+        stat_key = next((k for k in session.state.stats.keys() if k.lower() == stat_name.lower()), None)
+        
+        if not stat_key:
             return {"error": f"Stat '{stat_name}' not found in this adventure"}
 
-        stat_value = session.state.stats[stat_name]
+        stat_value = session.state.stats[stat_key]
         roll_result = stat_check(stat_value, difficulty_class)
         success = roll_result.success
     else:
@@ -598,11 +604,14 @@ async def combat_round(
     if not session:
         return {"error": f"Session {session_id} not found"}
     
-    if attack_stat not in session.state.stats:
+    # Case-insensitive lookup
+    stat_key = next((k for k in session.state.stats.keys() if k.lower() == attack_stat.lower()), None)
+    
+    if not stat_key:
         return {"error": f"Stat '{attack_stat}' not found"}
 
     # Player Attack
-    stat_value = session.state.stats[attack_stat]
+    stat_value = session.state.stats[stat_key]
     attack_roll = stat_check(stat_value, target_ac)
     
     damage = 0
@@ -729,9 +738,12 @@ async def roll_check(session_id: str, stat_name: str = None, difficulty_class: i
         return {"error": f"Session {session_id} not found"}
 
     if stat_name:
-        if stat_name not in session.state.stats:
+        # Case-insensitive lookup
+        stat_key = next((k for k in session.state.stats.keys() if k.lower() == stat_name.lower()), None)
+        
+        if not stat_key:
             return {"error": f"Stat '{stat_name}' not found"}
-        stat_value = session.state.stats[stat_name]
+        stat_value = session.state.stats[stat_key]
         result = stat_check(stat_value, difficulty_class)
     else:
         result = dice_roll_check(difficulty_class=difficulty_class)
@@ -759,6 +771,14 @@ async def modify_state(
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
+
+    # Attempt to coerce numeric string values for numeric actions
+    if action in ["hp", "stat", "score"] and isinstance(value, str):
+        try:
+            value = int(value)
+        except ValueError:
+            # If conversion fails, we leave it as string and let the specific action handlers return their error messages
+            pass
 
     if action == "hp":
         if value is None:
@@ -791,13 +811,16 @@ async def modify_state(
         if not isinstance(value, int):
             return {"error": "value must be an integer for stat action"}
 
-        if stat_name not in session.state.stats:
+        # Case-insensitive lookup
+        stat_key = next((k for k in session.state.stats.keys() if k.lower() == stat_name.lower()), None)
+
+        if not stat_key:
             return {"error": f"Stat '{stat_name}' not found"}
 
         adventure = await db.get_adventure(session.adventure_id)
-        stat_def = next((s for s in adventure.stats if s.name == stat_name), None)
+        stat_def = next((s for s in adventure.stats if s.name.lower() == stat_key.lower()), None)
 
-        old_value = session.state.stats[stat_name]
+        old_value = session.state.stats[stat_key]
         new_value = old_value + value
 
         # Clamp to stat bounds
@@ -806,13 +829,13 @@ async def modify_state(
         else:
             new_value = max(0, min(20, new_value))
 
-        session.state.stats[stat_name] = new_value
+        session.state.stats[stat_key] = new_value
         await db.update_player_state(session_id, session.state)
 
         return {
             "success": True,
             "action": "stat",
-            "stat": stat_name,
+            "stat": stat_key,
             "old_value": old_value,
             "new_value": new_value,
             "change": value,
@@ -1389,8 +1412,20 @@ async def manage_character(
     character_data: dict | None = None
 ) -> dict:
     """
-    CRUD for NPCs. Populate required fields; keep stats/properties structured.
-    Actions: create | read | update | delete | list.
+    CRUD for NPCs and Characters.
+    
+    Args:
+        session_id: The ID of the current game session.
+        action: One of 'create', 'read', 'update', 'delete', 'list'.
+        character_id: Required for read, update, delete.
+        character_data: Dictionary containing character details.
+            For 'create', required fields are:
+            - name: (str) Character's name
+            - description: (str) Physical/personality description
+            - location: (str) ID of the location where they start
+            Optional fields:
+            - stats: (dict) e.g. {"hp": 10, "str": 12}
+            - properties: (dict) e.g. {"is_merchant": True}
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1399,6 +1434,12 @@ async def manage_character(
     if action == "create":
         if not character_data:
             return {"error": "character_data required for create action"}
+        
+        required_fields = ["name", "description", "location"]
+        missing = [f for f in required_fields if f not in character_data]
+        if missing:
+            return {"error": f"Missing required fields in character_data: {', '.join(missing)}"}
+
         char_id = character_data.get("id", f"char_{uuid.uuid4().hex[:8]}")
         character = Character(
             id=char_id,

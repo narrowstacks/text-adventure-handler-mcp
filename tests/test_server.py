@@ -108,6 +108,41 @@ async def test_take_action(mock_db):
             mock_stat_check.assert_called()
 
 @pytest.mark.asyncio
+async def test_take_action_case_insensitive(mock_db):
+    """Test that stat lookup works regardless of case."""
+    with patch("adventure_handler.server.db", mock_db):
+        # Setup session
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Start",
+                stats={"Strength": 10} # Title Case
+            )
+        )
+        mock_db.get_session.return_value = session
+        
+        with patch("adventure_handler.server.stat_check") as mock_stat_check:
+            mock_stat_check.return_value.success = True
+            mock_stat_check.return_value.model_dump.return_value = {"success": True}
+            
+            # Test with lowercase "strength"
+            result = await take_action.fn(session_id="sess1", action="Lift rock", stat_name="strength")
+            
+            # Should NOT return error
+            assert "error" not in result
+            assert result["success"] is True
+            
+            # Test with UPPERCASE "STRENGTH"
+            result = await take_action.fn(session_id="sess1", action="Lift rock", stat_name="STRENGTH")
+            assert "error" not in result
+            assert result["success"] is True
+
+@pytest.mark.asyncio
 async def test_modify_state_hp(mock_db):
     """Test modify_state with hp action"""
     with patch("adventure_handler.server.db", mock_db):
