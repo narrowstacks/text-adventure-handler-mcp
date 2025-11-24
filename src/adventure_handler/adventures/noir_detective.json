@@ -118,5 +118,45 @@
     }
   ],
   "initial_location": "{location_names.crime_scene}",
-  "initial_story": "Rain hammers the {location_names.crime_scene}. A body lies cold on the concrete floor, its right hand clutching a {item_names.evidence}. The deceased was a known associate of {character_names.suspect}. You light a cigarette and glance at your notes—there are whispers about connections to {character_names.underworld}. You begin your investigation, knowing that somewhere in this mess, the truth is buried."
+  "initial_story": "Rain hammers the {location_names.crime_scene}. A body lies cold on the concrete floor, its right hand clutching a {item_names.evidence}. The deceased was a known associate of {character_names.suspect}. You light a cigarette and glance at your notes—there are whispers about connections to {character_names.underworld}. You begin your investigation, knowing that somewhere in this mess, the truth is buried.",
+  "features": {
+    "status_effects": true,
+    "time_tracking": true,
+    "factions": true,
+    "currency": true
+  },
+  "time_config": {
+    "starting_hour": 22,
+    "starting_day": 1
+  },
+  "currency_config": {
+    "name": "dollars",
+    "starting_amount": 150
+  },
+  "factions": [
+    {
+      "id": "police_dept",
+      "name": "Police Department",
+      "description": "The boys in blue - some honest, some on the take",
+      "initial_reputation": 30
+    },
+    {
+      "id": "roselli_family",
+      "name": "Roselli Crime Family",
+      "description": "The most powerful organized crime syndicate in the city",
+      "initial_reputation": -20
+    },
+    {
+      "id": "waterfront_union",
+      "name": "Waterfront Union",
+      "description": "Dockworkers with strong mob connections",
+      "initial_reputation": 0
+    },
+    {
+      "id": "press",
+      "name": "City Press",
+      "description": "Journalists always looking for the next big story",
+      "initial_reputation": 10
+    }
+  ]
 }

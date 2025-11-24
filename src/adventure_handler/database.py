@@ -4,7 +4,12 @@ import aiosqlite
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from .models import Adventure, GameSession, PlayerState, Action, StatDefinition, WordList, Character, Location, Item, SessionSummary, InventoryItem, QuestStatus, NarratorThought, Memory
+from .models import (
+    Adventure, GameSession, PlayerState, Action, StatDefinition, WordList,
+    Character, Location, Item, SessionSummary, InventoryItem, QuestStatus,
+    NarratorThought, Memory, StatusEffect, Faction, FeatureConfig, TimeConfig,
+    CurrencyConfig, FactionDefinition
+)
 
 
 class AdventureDB:
@@ -163,18 +168,92 @@ class AdventureDB:
                 )
                 """
             )
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS status_effects (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    duration INTEGER NOT NULL,
+                    stat_modifiers JSON DEFAULT '{}',
+                    properties JSON DEFAULT '{}',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES game_sessions(id)
+                )
+                """
+            )
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS factions (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    reputation INTEGER DEFAULT 0,
+                    properties JSON DEFAULT '{}',
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES game_sessions(id)
+                )
+                """
+            )
+
+            # Migration for existing databases to add new fields to player_state
+            try:
+                await conn.execute("ALTER TABLE player_state ADD COLUMN currency INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                await conn.execute("ALTER TABLE player_state ADD COLUMN game_time INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                await conn.execute("ALTER TABLE player_state ADD COLUMN game_day INTEGER DEFAULT 1")
+            except Exception:
+                pass
+
+            # Migration for adventures table to add starting_hp (older databases)
+            try:
+                await conn.execute("ALTER TABLE adventures ADD COLUMN starting_hp INTEGER DEFAULT 10")
+            except Exception:
+                pass
+
+            # Migration for adventures table to add new feature configs
+            try:
+                await conn.execute("ALTER TABLE adventures ADD COLUMN features JSON DEFAULT '{}'")
+            except Exception:
+                pass
+            try:
+                await conn.execute("ALTER TABLE adventures ADD COLUMN time_config JSON DEFAULT '{}'")
+            except Exception:
+                pass
+            try:
+                await conn.execute("ALTER TABLE adventures ADD COLUMN currency_config JSON DEFAULT '{}'")
+            except Exception:
+                pass
+            try:
+                await conn.execute("ALTER TABLE adventures ADD COLUMN factions JSON DEFAULT '[]'")
+            except Exception:
+                pass
+
             await conn.commit()
 
     async def add_adventure(self, adventure: Adventure) -> None:
         """Add a new adventure template."""
         stats_json = json.dumps([s.model_dump() for s in adventure.stats])
         word_lists_json = json.dumps([w.model_dump() for w in adventure.word_lists])
+        features_json = json.dumps(adventure.features.model_dump())
+        time_config_json = json.dumps(adventure.time_config.model_dump())
+        currency_config_json = json.dumps(adventure.currency_config.model_dump())
+        factions_json = json.dumps([f.model_dump() for f in adventure.factions])
+
         async with self._get_conn() as conn:
             await conn.execute(
                 """
                 INSERT OR REPLACE INTO adventures
-                (id, title, description, prompt, stats, starting_hp, word_lists, initial_location, initial_story)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, title, description, prompt, stats, starting_hp, word_lists, initial_location, initial_story,
+                 features, time_config, currency_config, factions)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     adventure.id,
@@ -186,6 +265,10 @@ class AdventureDB:
                     word_lists_json,
                     adventure.initial_location,
                     adventure.initial_story,
+                    features_json,
+                    time_config_json,
+                    currency_config_json,
+                    factions_json,
                 ),
             )
             await conn.commit()
@@ -206,9 +289,22 @@ class AdventureDB:
         word_lists_data = json.loads(row["word_lists"]) if "word_lists" in row.keys() else []
         if word_lists_data is None:
              word_lists_data = []
-             
+
         word_lists = [WordList(**w) for w in word_lists_data]
-        
+
+        # Load new feature configs with defaults for backward compatibility
+        features_data = json.loads(row["features"]) if "features" in row.keys() and row["features"] else {}
+        features = FeatureConfig(**features_data) if features_data else FeatureConfig()
+
+        time_config_data = json.loads(row["time_config"]) if "time_config" in row.keys() and row["time_config"] else {}
+        time_config = TimeConfig(**time_config_data) if time_config_data else TimeConfig()
+
+        currency_config_data = json.loads(row["currency_config"]) if "currency_config" in row.keys() and row["currency_config"] else {}
+        currency_config = CurrencyConfig(**currency_config_data) if currency_config_data else CurrencyConfig()
+
+        factions_data = json.loads(row["factions"]) if "factions" in row.keys() and row["factions"] else []
+        factions = [FactionDefinition(**f) for f in factions_data]
+
         return Adventure(
             id=row["id"],
             title=row["title"],
@@ -219,6 +315,10 @@ class AdventureDB:
             word_lists=word_lists,
             initial_location=row["initial_location"],
             initial_story=row["initial_story"],
+            features=features,
+            time_config=time_config,
+            currency_config=currency_config,
+            factions=factions,
         )
 
     async def list_adventures(self) -> list[dict]:
@@ -274,8 +374,9 @@ class AdventureDB:
             await conn.execute(
                 """
                 INSERT INTO player_state
-                (session_id, hp, max_hp, location, stats, inventory, quests, relationships, custom_data)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (session_id, hp, max_hp, location, stats, inventory, quests, relationships, custom_data,
+                 currency, game_time, game_day)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
@@ -287,9 +388,24 @@ class AdventureDB:
                     json.dumps([]),
                     json.dumps({}),
                     json.dumps({}),
+                    adventure.currency_config.starting_amount,
+                    adventure.time_config.starting_hour,
+                    adventure.time_config.starting_day,
                 ),
             )
             await conn.commit()
+
+            # Initialize factions if defined in adventure
+            for faction_def in adventure.factions:
+                faction = Faction(
+                    id=f"{session_id}_{faction_def.id}",
+                    session_id=session_id,
+                    name=faction_def.name,
+                    description=faction_def.description,
+                    reputation=faction_def.initial_reputation,
+                )
+                await self.add_faction(faction)
+
         return True
 
     async def get_session(self, session_id: str) -> Optional[GameSession]:
@@ -312,13 +428,16 @@ class AdventureDB:
         # Safe loading of JSON fields with defaults
         inventory_data = json.loads(state_row["inventory"])
         inventory = [InventoryItem(**i) for i in inventory_data]
-        
+
         quests_data = json.loads(state_row["quests"]) if "quests" in state_row.keys() and state_row["quests"] else []
         quests = [QuestStatus(**q) for q in quests_data]
 
         relationships = json.loads(state_row["relationships"]) if "relationships" in state_row.keys() and state_row["relationships"] else {}
         hp = state_row["hp"] if "hp" in state_row.keys() and state_row["hp"] is not None else 10
         max_hp = state_row["max_hp"] if "max_hp" in state_row.keys() and state_row["max_hp"] is not None else 10
+        currency = state_row["currency"] if "currency" in state_row.keys() and state_row["currency"] is not None else 0
+        game_time = state_row["game_time"] if "game_time" in state_row.keys() and state_row["game_time"] is not None else 0
+        game_day = state_row["game_day"] if "game_day" in state_row.keys() and state_row["game_day"] is not None else 1
 
         state = PlayerState(
             session_id=session_id,
@@ -331,6 +450,9 @@ class AdventureDB:
             quests=quests,
             relationships=relationships,
             custom_data=json.loads(state_row["custom_data"] or "{}"),
+            currency=currency,
+            game_time=game_time,
+            game_day=game_day,
         )
 
         return GameSession(
@@ -345,13 +467,14 @@ class AdventureDB:
         """Update player state."""
         inventory_json = json.dumps([i.model_dump() for i in state.inventory])
         quests_json = json.dumps([q.model_dump() for q in state.quests])
-        
+
         async with self._get_conn() as conn:
             await conn.execute(
                 """
                 UPDATE player_state SET
                 hp = ?, max_hp = ?, score = ?, location = ?, stats = ?, inventory = ?,
-                quests = ?, relationships = ?, custom_data = ?, updated_at = CURRENT_TIMESTAMP
+                quests = ?, relationships = ?, custom_data = ?, currency = ?, game_time = ?, game_day = ?,
+                updated_at = CURRENT_TIMESTAMP
                 WHERE session_id = ?
                 """,
                 (
@@ -364,6 +487,9 @@ class AdventureDB:
                     quests_json,
                     json.dumps(state.relationships),
                     json.dumps(state.custom_data),
+                    state.currency,
+                    state.game_time,
+                    state.game_day,
                     session_id,
                 ),
             )
@@ -785,3 +911,202 @@ class AdventureDB:
             )
             for row in rows
         ]
+
+    # Status effect management
+    async def add_status_effect(self, effect: StatusEffect) -> None:
+        """Add a status effect to the session."""
+        async with self._get_conn() as conn:
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO status_effects
+                (id, session_id, name, description, duration, stat_modifiers, properties, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    effect.id,
+                    effect.session_id,
+                    effect.name,
+                    effect.description,
+                    effect.duration,
+                    json.dumps(effect.stat_modifiers),
+                    json.dumps(effect.properties),
+                    effect.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_status_effect(self, effect_id: str) -> Optional[StatusEffect]:
+        """Retrieve a status effect by ID."""
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
+                "SELECT * FROM status_effects WHERE id = ?", (effect_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+
+        if not row:
+            return None
+
+        return StatusEffect(
+            id=row["id"],
+            session_id=row["session_id"],
+            name=row["name"],
+            description=row["description"],
+            duration=row["duration"],
+            stat_modifiers=json.loads(row["stat_modifiers"]),
+            properties=json.loads(row["properties"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    async def list_status_effects(self, session_id: str, active_only: bool = True) -> list[StatusEffect]:
+        """List status effects for a session."""
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            if active_only:
+                async with conn.execute(
+                    "SELECT * FROM status_effects WHERE session_id = ? AND duration != 0 ORDER BY created_at",
+                    (session_id,),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+            else:
+                async with conn.execute(
+                    "SELECT * FROM status_effects WHERE session_id = ? ORDER BY created_at",
+                    (session_id,),
+                ) as cursor:
+                    rows = await cursor.fetchall()
+
+        return [
+            StatusEffect(
+                id=row["id"],
+                session_id=row["session_id"],
+                name=row["name"],
+                description=row["description"],
+                duration=row["duration"],
+                stat_modifiers=json.loads(row["stat_modifiers"]),
+                properties=json.loads(row["properties"]),
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    async def update_status_effect(self, effect: StatusEffect) -> bool:
+        """Update an existing status effect."""
+        async with self._get_conn() as conn:
+            await conn.execute(
+                """
+                UPDATE status_effects SET
+                name = ?, description = ?, duration = ?, stat_modifiers = ?, properties = ?
+                WHERE id = ?
+                """,
+                (
+                    effect.name,
+                    effect.description,
+                    effect.duration,
+                    json.dumps(effect.stat_modifiers),
+                    json.dumps(effect.properties),
+                    effect.id,
+                ),
+            )
+            await conn.commit()
+        return True
+
+    async def delete_status_effect(self, effect_id: str) -> bool:
+        """Delete a status effect."""
+        async with self._get_conn() as conn:
+            await conn.execute("DELETE FROM status_effects WHERE id = ?", (effect_id,))
+            await conn.commit()
+        return True
+
+    # Faction management
+    async def add_faction(self, faction: Faction) -> None:
+        """Add a faction to the session."""
+        async with self._get_conn() as conn:
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO factions
+                (id, session_id, name, description, reputation, properties, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    faction.id,
+                    faction.session_id,
+                    faction.name,
+                    faction.description,
+                    faction.reputation,
+                    json.dumps(faction.properties),
+                    faction.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_faction(self, faction_id: str) -> Optional[Faction]:
+        """Retrieve a faction by ID."""
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
+                "SELECT * FROM factions WHERE id = ?", (faction_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+
+        if not row:
+            return None
+
+        return Faction(
+            id=row["id"],
+            session_id=row["session_id"],
+            name=row["name"],
+            description=row["description"],
+            reputation=row["reputation"],
+            properties=json.loads(row["properties"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    async def list_factions(self, session_id: str) -> list[Faction]:
+        """List all factions in a session."""
+        async with self._get_conn() as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute(
+                "SELECT * FROM factions WHERE session_id = ? ORDER BY name",
+                (session_id,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        return [
+            Faction(
+                id=row["id"],
+                session_id=row["session_id"],
+                name=row["name"],
+                description=row["description"],
+                reputation=row["reputation"],
+                properties=json.loads(row["properties"]),
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        ]
+
+    async def update_faction(self, faction: Faction) -> bool:
+        """Update an existing faction."""
+        async with self._get_conn() as conn:
+            await conn.execute(
+                """
+                UPDATE factions SET
+                name = ?, description = ?, reputation = ?, properties = ?
+                WHERE id = ?
+                """,
+                (
+                    faction.name,
+                    faction.description,
+                    faction.reputation,
+                    json.dumps(faction.properties),
+                    faction.id,
+                ),
+            )
+            await conn.commit()
+        return True
+
+    async def delete_faction(self, faction_id: str) -> bool:
+        """Delete a faction."""
+        async with self._get_conn() as conn:
+            await conn.execute("DELETE FROM factions WHERE id = ?", (faction_id,))
+            await conn.commit()
+        return True

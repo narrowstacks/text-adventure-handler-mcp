@@ -9,7 +9,7 @@ from fastmcp import FastMCP
 from fastmcp.resources import Resource
 
 from .database import AdventureDB
-from .models import Adventure, StatDefinition, WordList, Character, Location, Item, InventoryItem, QuestStatus, Memory
+from .models import Adventure, StatDefinition, WordList, Character, Location, Item, InventoryItem, QuestStatus, Memory, StatusEffect, Faction
 from .dice import stat_check
 from .dice import roll_check as dice_roll_check
 from .randomizer import get_random_word, generate_word_prompt, process_template
@@ -119,26 +119,20 @@ async def narrator_thought(
 async def execute_batch(session_id: str, commands: list[dict]) -> dict:
     """
     Execute multiple commands in sequence.
-    ONLY for pure actions that don't require intermediate AI text generation from you. 
+    ONLY for pure actions that don't require intermediate AI text generation from you.
     Ensure commands cannot conflict and can be safely chained without breaking the story flow.
 
-    
+
     Args:
         session_id: The game session
         commands: List of commands, e.g. [{"tool": "move_to_location", "args": {"location": "North"}}]
-        
-    Allowed tools: 
-    - take_action
-    - move_to_location
-    - combat_round
-    - add_inventory
-    - modify_hp
-    - update_quest
-    - interact_npc
-    - modify_stat
-    - update_score
-    - record_event
-    - add_character_memory
+
+    Allowed tools:
+    - take_action, move_to_location, combat_round
+    - add_inventory, remove_inventory, modify_hp, modify_stat, update_score
+    - update_quest, interact_npc, record_event, add_character_memory
+    - manage_character, manage_location, manage_item
+    - manage_status_effect, manage_time, manage_faction, manage_economy
     """
     # Map string names to actual tool functions
     # Note: We refer to the functions available in this module's scope
@@ -155,6 +149,13 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
         "update_score": update_score,
         "record_event": record_event,
         "add_character_memory": add_character_memory,
+        "manage_character": manage_character,
+        "manage_location": manage_location,
+        "manage_item": manage_item,
+        "manage_status_effect": manage_status_effect,
+        "manage_time": manage_time,
+        "manage_faction": manage_faction,
+        "manage_economy": manage_economy,
     }
 
     results = []
@@ -590,9 +591,10 @@ async def combat_round(
 
     # Enemy Counter-Attack (Simplified: AI determines outcome, we just prompt for it)
     # In a full game, we'd track enemy stats in DB. For now, this tool handles the mechanics of the player's turn.
-    
+
     return {
         "success": attack_roll.success,
+        "player_action": player_action,
         "attack_roll": attack_roll.model_dump(),
         "damage_dealt": damage,
         "message": message,
@@ -1021,11 +1023,74 @@ async def session_state(session_id: str) -> Resource:
         "inventory": [i.model_dump() for i in session.state.inventory],
         "quests": [q.model_dump() for q in session.state.quests],
         "custom_data": session.state.custom_data,
+        "currency": session.state.currency,
+        "game_time": session.state.game_time,
+        "game_day": session.state.game_day,
     }, indent=2)
 
     return Resource(
         uri=f"session://state/{session_id}",
         contents=state_content,
+        mime_type="application/json",
+    )
+
+
+@mcp.resource("session://history/{session_id}")
+async def session_history(session_id: str) -> Resource:
+    """Get action history for a session."""
+    history = await db.get_history(session_id, limit=100)
+    if not history:
+        return Resource(uri=f"session://history/{session_id}", contents="[]")
+
+    history_content = json.dumps(history, indent=2)
+    return Resource(
+        uri=f"session://history/{session_id}",
+        contents=history_content,
+        mime_type="application/json",
+    )
+
+
+@mcp.resource("session://characters/{session_id}")
+async def session_characters(session_id: str) -> Resource:
+    """Get all characters in a session."""
+    characters = await db.list_characters(session_id)
+    if not characters:
+        return Resource(uri=f"session://characters/{session_id}", contents="[]")
+
+    characters_content = json.dumps([c.model_dump() for c in characters], indent=2, default=str)
+    return Resource(
+        uri=f"session://characters/{session_id}",
+        contents=characters_content,
+        mime_type="application/json",
+    )
+
+
+@mcp.resource("session://locations/{session_id}")
+async def session_locations(session_id: str) -> Resource:
+    """Get all locations in a session."""
+    locations = await db.list_locations(session_id)
+    if not locations:
+        return Resource(uri=f"session://locations/{session_id}", contents="[]")
+
+    locations_content = json.dumps([l.model_dump() for l in locations], indent=2, default=str)
+    return Resource(
+        uri=f"session://locations/{session_id}",
+        contents=locations_content,
+        mime_type="application/json",
+    )
+
+
+@mcp.resource("session://items/{session_id}")
+async def session_items(session_id: str) -> Resource:
+    """Get all items in a session."""
+    items = await db.list_items(session_id)
+    if not items:
+        return Resource(uri=f"session://items/{session_id}", contents="[]")
+
+    items_content = json.dumps([i.model_dump() for i in items], indent=2, default=str)
+    return Resource(
+        uri=f"session://items/{session_id}",
+        contents=items_content,
         mime_type="application/json",
     )
 
@@ -1134,6 +1199,606 @@ async def get_character_memories(session_id: str, character_name: str, limit: in
         "character": character.name,
         "memories": [m.model_dump() for m in sorted_memories[:limit]]
     }
+
+
+@mcp.tool()
+async def manage_character(
+    session_id: str,
+    action: str,
+    character_id: str | None = None,
+    character_data: dict | None = None
+) -> dict:
+    """
+    Modular tool for character CRUD operations.
+
+    Actions:
+    - create: Create new character (requires character_data with: name, description, location, stats?, properties?)
+    - read: Get character by ID (requires character_id)
+    - update: Update character (requires character_id and character_data)
+    - delete: Delete character (requires character_id)
+    - list: List all characters in session
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    if action == "create":
+        if not character_data:
+            return {"error": "character_data required for create action"}
+        char_id = character_data.get("id", f"char_{uuid.uuid4().hex[:8]}")
+        character = Character(
+            id=char_id,
+            session_id=session_id,
+            name=character_data["name"],
+            description=character_data["description"],
+            location=character_data["location"],
+            stats=character_data.get("stats", {}),
+            properties=character_data.get("properties", {}),
+            memories=[]
+        )
+        await db.add_character(character)
+        return {"success": True, "action": "create", "character_id": char_id}
+
+    elif action == "read":
+        if not character_id:
+            return {"error": "character_id required for read action"}
+        character = await db.get_character(character_id)
+        if not character:
+            return {"error": f"Character {character_id} not found"}
+        return {"success": True, "action": "read", "data": character.model_dump()}
+
+    elif action == "update":
+        if not character_id:
+            return {"error": "character_id required for update action"}
+        if not character_data:
+            return {"error": "character_data required for update action"}
+        character = await db.get_character(character_id)
+        if not character:
+            return {"error": f"Character {character_id} not found"}
+        # Update fields
+        if "name" in character_data:
+            character.name = character_data["name"]
+        if "description" in character_data:
+            character.description = character_data["description"]
+        if "location" in character_data:
+            character.location = character_data["location"]
+        if "stats" in character_data:
+            character.stats = character_data["stats"]
+        if "properties" in character_data:
+            character.properties = character_data["properties"]
+        await db.update_character(character)
+        return {"success": True, "action": "update", "character_id": character_id}
+
+    elif action == "delete":
+        if not character_id:
+            return {"error": "character_id required for delete action"}
+        await db.delete_character(character_id)
+        return {"success": True, "action": "delete", "character_id": character_id}
+
+    elif action == "list":
+        characters = await db.list_characters(session_id)
+        return {
+            "success": True,
+            "action": "list",
+            "characters": [{"id": c.id, "name": c.name, "location": c.location} for c in characters]
+        }
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: create, read, update, delete, list"}
+
+
+@mcp.tool()
+async def manage_location(
+    session_id: str,
+    action: str,
+    location_id: str | None = None,
+    location_data: dict | None = None
+) -> dict:
+    """
+    Modular tool for location CRUD operations.
+
+    Actions:
+    - create: Create new location (requires location_data with: name, description, connected_to?, properties?)
+    - read: Get location by ID (requires location_id)
+    - update: Update location (requires location_id and location_data)
+    - delete: Delete location (requires location_id)
+    - list: List all locations in session
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    if action == "create":
+        if not location_data:
+            return {"error": "location_data required for create action"}
+        loc_id = location_data.get("id", f"loc_{uuid.uuid4().hex[:8]}")
+        location = Location(
+            id=loc_id,
+            session_id=session_id,
+            name=location_data["name"],
+            description=location_data["description"],
+            connected_to=location_data.get("connected_to", []),
+            properties=location_data.get("properties", {})
+        )
+        await db.add_location(location)
+        return {"success": True, "action": "create", "location_id": loc_id}
+
+    elif action == "read":
+        if not location_id:
+            return {"error": "location_id required for read action"}
+        location = await db.get_location(location_id)
+        if not location:
+            return {"error": f"Location {location_id} not found"}
+        return {"success": True, "action": "read", "data": location.model_dump()}
+
+    elif action == "update":
+        if not location_id:
+            return {"error": "location_id required for update action"}
+        if not location_data:
+            return {"error": "location_data required for update action"}
+        location = await db.get_location(location_id)
+        if not location:
+            return {"error": f"Location {location_id} not found"}
+        if "name" in location_data:
+            location.name = location_data["name"]
+        if "description" in location_data:
+            location.description = location_data["description"]
+        if "connected_to" in location_data:
+            location.connected_to = location_data["connected_to"]
+        if "properties" in location_data:
+            location.properties = location_data["properties"]
+        await db.update_location(location)
+        return {"success": True, "action": "update", "location_id": location_id}
+
+    elif action == "delete":
+        if not location_id:
+            return {"error": "location_id required for delete action"}
+        await db.delete_location(location_id)
+        return {"success": True, "action": "delete", "location_id": location_id}
+
+    elif action == "list":
+        locations = await db.list_locations(session_id)
+        return {
+            "success": True,
+            "action": "list",
+            "locations": [{"id": l.id, "name": l.name} for l in locations]
+        }
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: create, read, update, delete, list"}
+
+
+@mcp.tool()
+async def manage_item(
+    session_id: str,
+    action: str,
+    item_id: str | None = None,
+    item_data: dict | None = None
+) -> dict:
+    """
+    Modular tool for item CRUD operations.
+
+    Actions:
+    - create: Create new item (requires item_data with: name, description, location?, properties?)
+    - read: Get item by ID (requires item_id)
+    - update: Update item (requires item_id and item_data)
+    - delete: Delete item (requires item_id)
+    - list: List all items in session
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    if action == "create":
+        if not item_data:
+            return {"error": "item_data required for create action"}
+        itm_id = item_data.get("id", f"item_{uuid.uuid4().hex[:8]}")
+        item = Item(
+            id=itm_id,
+            session_id=session_id,
+            name=item_data["name"],
+            description=item_data["description"],
+            location=item_data.get("location"),
+            properties=item_data.get("properties", {})
+        )
+        await db.add_item(item)
+        return {"success": True, "action": "create", "item_id": itm_id}
+
+    elif action == "read":
+        if not item_id:
+            return {"error": "item_id required for read action"}
+        item = await db.get_item(item_id)
+        if not item:
+            return {"error": f"Item {item_id} not found"}
+        return {"success": True, "action": "read", "data": item.model_dump()}
+
+    elif action == "update":
+        if not item_id:
+            return {"error": "item_id required for update action"}
+        if not item_data:
+            return {"error": "item_data required for update action"}
+        item = await db.get_item(item_id)
+        if not item:
+            return {"error": f"Item {item_id} not found"}
+        if "name" in item_data:
+            item.name = item_data["name"]
+        if "description" in item_data:
+            item.description = item_data["description"]
+        if "location" in item_data:
+            item.location = item_data["location"]
+        if "properties" in item_data:
+            item.properties = item_data["properties"]
+        await db.update_item(item)
+        return {"success": True, "action": "update", "item_id": item_id}
+
+    elif action == "delete":
+        if not item_id:
+            return {"error": "item_id required for delete action"}
+        await db.delete_item(item_id)
+        return {"success": True, "action": "delete", "item_id": item_id}
+
+    elif action == "list":
+        items = await db.list_items(session_id)
+        return {
+            "success": True,
+            "action": "list",
+            "items": [{"id": i.id, "name": i.name, "location": i.location} for i in items]
+        }
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: create, read, update, delete, list"}
+
+
+@mcp.tool()
+async def manage_status_effect(
+    session_id: str,
+    action: str,
+    effect_id: str | None = None,
+    effect_data: dict | None = None
+) -> dict:
+    """
+    Modular tool for status effect management.
+
+    Actions:
+    - apply: Apply new status effect (requires effect_data with: name, description, duration, stat_modifiers?, properties?)
+    - remove: Remove status effect (requires effect_id)
+    - list: List all active status effects
+    - update: Update effect duration or modifiers (requires effect_id and effect_data)
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    if action == "apply":
+        if not effect_data:
+            return {"error": "effect_data required for apply action"}
+        eff_id = effect_data.get("id", f"effect_{uuid.uuid4().hex[:8]}")
+        effect = StatusEffect(
+            id=eff_id,
+            session_id=session_id,
+            name=effect_data["name"],
+            description=effect_data["description"],
+            duration=effect_data["duration"],
+            stat_modifiers=effect_data.get("stat_modifiers", {}),
+            properties=effect_data.get("properties", {})
+        )
+        await db.add_status_effect(effect)
+        return {"success": True, "action": "apply", "effect_id": eff_id}
+
+    elif action == "remove":
+        if not effect_id:
+            return {"error": "effect_id required for remove action"}
+        await db.delete_status_effect(effect_id)
+        return {"success": True, "action": "remove", "effect_id": effect_id}
+
+    elif action == "list":
+        effects = await db.list_status_effects(session_id, active_only=True)
+        return {
+            "success": True,
+            "action": "list",
+            "effects": [{"id": e.id, "name": e.name, "duration": e.duration, "modifiers": e.stat_modifiers} for e in effects]
+        }
+
+    elif action == "update":
+        if not effect_id:
+            return {"error": "effect_id required for update action"}
+        if not effect_data:
+            return {"error": "effect_data required for update action"}
+        effect = await db.get_status_effect(effect_id)
+        if not effect:
+            return {"error": f"Effect {effect_id} not found"}
+        if "duration" in effect_data:
+            effect.duration = effect_data["duration"]
+        if "stat_modifiers" in effect_data:
+            effect.stat_modifiers = effect_data["stat_modifiers"]
+        if "properties" in effect_data:
+            effect.properties = effect_data["properties"]
+        await db.update_status_effect(effect)
+        return {"success": True, "action": "update", "effect_id": effect_id}
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: apply, remove, list, update"}
+
+
+@mcp.tool()
+async def manage_time(
+    session_id: str,
+    action: str,
+    hours: int | None = None,
+    reason: str | None = None
+) -> dict:
+    """
+    Modular tool for time management (AI-controlled).
+
+    Actions:
+    - advance: Advance time by hours (requires hours, optional reason)
+    - get: Get current time information
+    - set: Set specific time (requires hours for time of day)
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    state = session.state
+
+    if action == "advance":
+        if hours is None:
+            return {"error": "hours required for advance action"}
+        state.game_time += hours
+        # Handle day rollover
+        while state.game_time >= 24:
+            state.game_time -= 24
+            state.game_day += 1
+        await db.update_player_state(session_id, state)
+
+        time_of_day = "night" if state.game_time < 6 or state.game_time >= 20 else \
+                      "morning" if state.game_time < 12 else \
+                      "afternoon" if state.game_time < 18 else "evening"
+
+        return {
+            "success": True,
+            "action": "advance",
+            "hours_passed": hours,
+            "reason": reason,
+            "current_time": state.game_time,
+            "current_day": state.game_day,
+            "time_of_day": time_of_day
+        }
+
+    elif action == "get":
+        time_of_day = "night" if state.game_time < 6 or state.game_time >= 20 else \
+                      "morning" if state.game_time < 12 else \
+                      "afternoon" if state.game_time < 18 else "evening"
+        return {
+            "success": True,
+            "action": "get",
+            "current_time": state.game_time,
+            "current_day": state.game_day,
+            "time_of_day": time_of_day
+        }
+
+    elif action == "set":
+        if hours is None:
+            return {"error": "hours required for set action"}
+        state.game_time = hours % 24
+        await db.update_player_state(session_id, state)
+        return {"success": True, "action": "set", "current_time": state.game_time}
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: advance, get, set"}
+
+
+@mcp.tool()
+async def manage_faction(
+    session_id: str,
+    action: str,
+    faction_id: str | None = None,
+    faction_data: dict | None = None
+) -> dict:
+    """
+    Modular tool for faction and reputation management.
+
+    Actions:
+    - create: Create new faction (requires faction_data with: name, description, initial_reputation?)
+    - update_reputation: Modify faction reputation (requires faction_id and faction_data with: change, reason?)
+    - list: List all factions with reputation levels
+    - get: Get specific faction details (requires faction_id)
+    - delete: Delete faction (requires faction_id)
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    if action == "create":
+        if not faction_data:
+            return {"error": "faction_data required for create action"}
+        fac_id = faction_data.get("id", f"faction_{uuid.uuid4().hex[:8]}")
+        faction = Faction(
+            id=fac_id,
+            session_id=session_id,
+            name=faction_data["name"],
+            description=faction_data["description"],
+            reputation=faction_data.get("initial_reputation", 0),
+            properties=faction_data.get("properties", {})
+        )
+        await db.add_faction(faction)
+        return {"success": True, "action": "create", "faction_id": fac_id}
+
+    elif action == "update_reputation":
+        if not faction_id:
+            return {"error": "faction_id required for update_reputation action"}
+        if not faction_data or "change" not in faction_data:
+            return {"error": "faction_data with 'change' field required"}
+        faction = await db.get_faction(faction_id)
+        if not faction:
+            return {"error": f"Faction {faction_id} not found"}
+        old_rep = faction.reputation
+        faction.reputation = max(-100, min(100, faction.reputation + faction_data["change"]))
+        await db.update_faction(faction)
+
+        # Determine reputation level
+        rep_level = "Revered" if faction.reputation > 80 else \
+                    "Honored" if faction.reputation > 50 else \
+                    "Friendly" if faction.reputation > 20 else \
+                    "Neutral" if faction.reputation >= -20 else \
+                    "Unfriendly" if faction.reputation >= -50 else \
+                    "Hostile" if faction.reputation >= -80 else "Hated"
+
+        return {
+            "success": True,
+            "action": "update_reputation",
+            "faction_id": faction_id,
+            "faction_name": faction.name,
+            "old_reputation": old_rep,
+            "new_reputation": faction.reputation,
+            "reputation_level": rep_level,
+            "reason": faction_data.get("reason")
+        }
+
+    elif action == "list":
+        factions = await db.list_factions(session_id)
+        return {
+            "success": True,
+            "action": "list",
+            "factions": [{"id": f.id, "name": f.name, "reputation": f.reputation} for f in factions]
+        }
+
+    elif action == "get":
+        if not faction_id:
+            return {"error": "faction_id required for get action"}
+        faction = await db.get_faction(faction_id)
+        if not faction:
+            return {"error": f"Faction {faction_id} not found"}
+        return {"success": True, "action": "get", "data": faction.model_dump()}
+
+    elif action == "delete":
+        if not faction_id:
+            return {"error": "faction_id required for delete action"}
+        await db.delete_faction(faction_id)
+        return {"success": True, "action": "delete", "faction_id": faction_id}
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: create, update_reputation, list, get, delete"}
+
+
+@mcp.tool()
+async def manage_economy(
+    session_id: str,
+    action: str,
+    amount: int | None = None,
+    item_id: str | None = None,
+    details: dict | None = None
+) -> dict:
+    """
+    Modular tool for economy and item transfer operations.
+
+    Actions:
+    - add_currency: Add money to player (requires amount, optional reason in details)
+    - remove_currency: Remove money from player (requires amount, optional reason in details)
+    - get_balance: Get current currency balance
+    - buy_item: Purchase item (requires item_id and amount as cost)
+    - sell_item: Sell item (requires item_id and amount as price)
+    - transfer_item: Move item between locations (requires item_id and details with: from_location, to_location)
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    state = session.state
+
+    if action == "add_currency":
+        if amount is None:
+            return {"error": "amount required for add_currency action"}
+        state.currency += amount
+        await db.update_player_state(session_id, state)
+        return {
+            "success": True,
+            "action": "add_currency",
+            "amount": amount,
+            "new_balance": state.currency,
+            "reason": details.get("reason") if details else None
+        }
+
+    elif action == "remove_currency":
+        if amount is None:
+            return {"error": "amount required for remove_currency action"}
+        if state.currency < amount:
+            return {"error": f"Insufficient funds. Have: {state.currency}, need: {amount}"}
+        state.currency -= amount
+        await db.update_player_state(session_id, state)
+        return {
+            "success": True,
+            "action": "remove_currency",
+            "amount": amount,
+            "new_balance": state.currency,
+            "reason": details.get("reason") if details else None
+        }
+
+    elif action == "get_balance":
+        adventure = await db.get_adventure(session.adventure_id)
+        currency_name = adventure.currency_config.name if adventure else "gold"
+        return {
+            "success": True,
+            "action": "get_balance",
+            "balance": state.currency,
+            "currency_name": currency_name
+        }
+
+    elif action == "buy_item":
+        if not item_id or amount is None:
+            return {"error": "item_id and amount (cost) required for buy_item action"}
+        if state.currency < amount:
+            return {"error": f"Cannot afford item. Have: {state.currency}, cost: {amount}"}
+        item = await db.get_item(item_id)
+        if not item:
+            return {"error": f"Item {item_id} not found"}
+        state.currency -= amount
+        item.location = None  # Move to player inventory
+        await db.update_item(item)
+        await db.update_player_state(session_id, state)
+        return {
+            "success": True,
+            "action": "buy_item",
+            "item_name": item.name,
+            "cost": amount,
+            "new_balance": state.currency
+        }
+
+    elif action == "sell_item":
+        if not item_id or amount is None:
+            return {"error": "item_id and amount (price) required for sell_item action"}
+        item = await db.get_item(item_id)
+        if not item:
+            return {"error": f"Item {item_id} not found"}
+        state.currency += amount
+        await db.delete_item(item_id)  # Remove from game
+        await db.update_player_state(session_id, state)
+        return {
+            "success": True,
+            "action": "sell_item",
+            "item_name": item.name,
+            "price": amount,
+            "new_balance": state.currency
+        }
+
+    elif action == "transfer_item":
+        if not item_id or not details:
+            return {"error": "item_id and details (from_location, to_location) required"}
+        item = await db.get_item(item_id)
+        if not item:
+            return {"error": f"Item {item_id} not found"}
+        item.location = details.get("to_location")
+        await db.update_item(item)
+        return {
+            "success": True,
+            "action": "transfer_item",
+            "item_name": item.name,
+            "from": details.get("from_location"),
+            "to": details.get("to_location")
+        }
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: add_currency, remove_currency, get_balance, buy_item, sell_item, transfer_item"}
 
 
 async def load_sample_adventures():

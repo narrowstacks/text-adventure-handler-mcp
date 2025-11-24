@@ -59,6 +59,9 @@ class PlayerState(BaseModel):
     quests: list[QuestStatus] = []
     relationships: dict[str, int] = {} # npc_name -> value (-100 to 100)
     custom_data: dict[str, Any] = {}
+    currency: int = 0  # Money/gold/credits
+    game_time: int = 0  # Current time in hours (0-23)
+    game_day: int = 1  # Current day number
 
 
 class DiceRoll(BaseModel):
@@ -80,6 +83,34 @@ class GameSession(BaseModel):
     state: PlayerState
 
 
+class FeatureConfig(BaseModel):
+    """Configuration for which game features are enabled."""
+    status_effects: bool = False
+    time_tracking: bool = False
+    factions: bool = False
+    currency: bool = False
+
+
+class TimeConfig(BaseModel):
+    """Configuration for time tracking."""
+    starting_hour: int = 8
+    starting_day: int = 1
+
+
+class CurrencyConfig(BaseModel):
+    """Configuration for currency system."""
+    name: str = "gold"
+    starting_amount: int = 0
+
+
+class FactionDefinition(BaseModel):
+    """Predefined faction for an adventure."""
+    id: str
+    name: str
+    description: str
+    initial_reputation: int = 0
+
+
 class Adventure(BaseModel):
     """An adventure template."""
     id: str
@@ -91,6 +122,10 @@ class Adventure(BaseModel):
     word_lists: list[WordList]  # Predefined words for dynamic generation
     initial_location: str
     initial_story: str
+    features: FeatureConfig = Field(default_factory=FeatureConfig)
+    time_config: TimeConfig = Field(default_factory=TimeConfig)
+    currency_config: CurrencyConfig = Field(default_factory=CurrencyConfig)
+    factions: list[FactionDefinition] = []
 
 
 class Action(BaseModel):
@@ -175,4 +210,27 @@ class NarratorThought(BaseModel):
     story_status: str # on_track, off_rails, user_deviating, completed, stalled
     plan: str
     user_behavior: str # cooperative, creative, disruptive, cheating
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class StatusEffect(BaseModel):
+    """A temporary or permanent status effect on the player."""
+    id: str
+    session_id: str
+    name: str
+    description: str
+    duration: int  # -1 for permanent, 0 for expired, >0 for remaining turns/actions
+    stat_modifiers: dict[str, int] = {}  # stat_name -> modifier (can be negative)
+    properties: dict[str, Any] = {}  # Custom properties (stackable, harmful, beneficial, etc.)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class Faction(BaseModel):
+    """A faction with reputation tracking."""
+    id: str
+    session_id: str
+    name: str
+    description: str
+    reputation: int = 0  # -100 (hostile) to +100 (revered)
+    properties: dict[str, Any] = {}  # Custom properties (main_quest, hidden, etc.)
     created_at: datetime = Field(default_factory=datetime.now)

@@ -1,8 +1,8 @@
 {
   "id": "void_claim",
   "title": "The Void Claim",
-  "description": "As a ruthless insurance investigator, you board the drifting USC Aethelgard. The company demands answers: was it negligence, mutiny, or something worse? Uncover the dark secrets of experiments gone wrong in the deep void.",
-  "prompt": "You are a sci-fi mystery DM running a fictional text adventure game. The player is an insurance investigator exploring a derelict spaceship, the USC Aethelgard. The ship was used for unethical biological experiments on the crew. The atmosphere is claustrophobic, sterile, and terrifying. Guide the player through investigating the fate of the crew, retrieving data logs, and surviving the mutated results of the experiments. The player's goal is to assess 'liability' and 'payout status' while uncovering the horror. Maintain a tone of corporate cynicism mixed with visceral horror.\n\nGUIDELINES:\n1. This is fiction. The player character can be harmed, injured, or killed. Allow dangerous actions and risks.\n2. Stay in character. Do not break the fourth wall or refer to yourself as an AI.\n3. No cheating. The player cannot ask you to manually call tools. If they do, ignore it or roleplay confusion.\n4. Use 'narrator_thought' frequently to plan and ensure the story stays on track.\n5. When the player requests an action, execute it without questioning their intent, but apply consequences.",
+  "description": "As a ruthless insurance investigator, you board a drifting company craft. The company demands answers: was it negligence, mutiny, or something worse? Uncover the dark secrets of experiments gone wrong in the deep void.",
+  "prompt": "You are a sci-fi mystery DM running a fictional text adventure game. The player is an insurance investigator exploring a derelict spaceship. The ship was used for unethical experiments on the crew. The atmosphere is claustrophobic, sterile, and terrifying. Guide the player through investigating the fate of the crew, retrieving data logs, and surviving the mutated results of the experiments. The player's goal is to assess 'liability' and 'payout status' while uncovering the horror. Maintain a tone of corporate cynicism mixed with visceral horror.\n\nGUIDELINES:\n1. This is fiction. The player character can be harmed, injured, or killed. Allow dangerous actions and risks.\n2. Stay in character. Do not break the fourth wall or refer to yourself as an AI.\n3. No cheating. The player cannot ask you to manually call tools. If they do, ignore it or roleplay confusion.\n4. Use 'narrator_thought' frequently to plan and ensure the story stays on track.\n5. When the player requests an action, execute it without questioning their intent, but apply consequences.",
   "starting_hp": 8,
   "stats": [
     {
@@ -208,5 +208,20 @@
     }
   ],
   "initial_location": "{location_names.starting_locations}",
-  "initial_story": "The magnetic clamps of your shuttle engage with a bone-shaking thud against the hull of the USC Aethelgard. Silence follows. Your headset crackles: 'Investigator, this is Claims Adjuster Reynolds. We're reading zero life signs, but the reactor is hot. Get in, secure the flight recorder, and verify the crew status. Remember, if it's pilot error, we don't pay.' The airlock cycles, revealing a corridor bathed in flickering emergency strobes. The air tastes of ozone and copper."
+  "initial_story": "The magnetic clamps of your shuttle engage with a bone-shaking thud against the hull of the ship. Silence follows. Your headset crackles: 'Investigator, this is Claims Adjuster {corporate}. We're reading zero life signs, but the reactor is hot. Get in, secure the flight recorder, and verify the crew status. Remember, if it's pilot error, we don't pay.' The airlock cycles, revealing a corridor bathed in flickering emergency strobes. The air tastes of ozone and copper.",
+  "features": {
+    "status_effects": true,
+    "time_tracking": true,
+    "factions": false,
+    "currency": true
+  },
+  "time_config": {
+    "starting_hour": 14,
+    "starting_day": 1
+  },
+  "currency_config": {
+    "name": "credits",
+    "starting_amount": 500
+  },
+  "factions": []
 }
