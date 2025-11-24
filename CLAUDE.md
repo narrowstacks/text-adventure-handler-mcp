@@ -244,13 +244,60 @@ manage_summary(
 - `"get_latest"`: Get only the most recent summary (new functionality)
 - `"delete"`: Delete a specific summary (new functionality)
 
+### `modify_state()` - State Modification Operations
+
+Consolidates `modify_hp()`, `modify_stat()`, `update_score()`, and `move_to_location()`:
+
+```python
+modify_state(
+    session_id: str,
+    action: str,                  # "hp", "stat", "score", "location"
+    value: int | str = None,      # Amount/location/change value
+    stat_name: str = None,        # For action="stat" only
+    reason: str = None            # Optional context (mainly for hp)
+)
+```
+
+**Actions:**
+- `"hp"`: Modify HP (value as int, positive heals/negative damages, optional reason)
+- `"stat"`: Modify stat (requires stat_name and value as int change amount)
+- `"score"`: Update score (value as int points to add/subtract)
+- `"location"`: Move player (value as location string)
+
+**Examples:**
+```python
+# Heal player
+modify_state(session_id, action="hp", value=5, reason="Potion")
+
+# Decrease Intelligence by 2 (drunk effect)
+modify_state(session_id, action="stat", stat_name="Intelligence", value=-2)
+
+# Award 100 points
+modify_state(session_id, action="score", value=100)
+
+# Move to new location
+modify_state(session_id, action="location", value="Tavern")
+```
+
 ### Migration Notes
 
 When updating existing code or adventure prompts:
+
+**Info Gathering:**
 - Replace `get_state()` → `get_session_info(include_state=True)`
 - Replace `get_history()` → `get_session_info(include_history=True)`
 - Replace `get_character_memories(name)` → `get_session_info(include_character_memories=name)`
+
+**Inventory:**
 - Replace `add_inventory()` → `manage_inventory(action="add")`
 - Replace `remove_inventory()` → `manage_inventory(action="remove")`
+
+**Summaries:**
 - Replace `summarize_progress()` → `manage_summary(action="create")`
 - Replace `get_adventure_summary()` → `manage_summary(action="get")`
+
+**State Modification:**
+- Replace `modify_hp(amount, reason)` → `modify_state(action="hp", value=amount, reason=reason)`
+- Replace `modify_stat(stat_name, change)` → `modify_state(action="stat", stat_name=stat_name, value=change)`
+- Replace `update_score(points)` → `modify_state(action="score", value=points)`
+- Replace `move_to_location(location)` → `modify_state(action="location", value=location)`

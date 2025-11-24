@@ -1,6 +1,7 @@
 """SQLite database operations for adventure handler."""
 import json
 import aiosqlite
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -17,8 +18,13 @@ class AdventureDB:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            # Default to user's home directory for persistence across uvx runs
-            db_path = Path.home() / ".text-adventure-handler" / "adventure_handler.db"
+            # Check environment variable first
+            env_path = os.environ.get("ADVENTURE_DB_PATH")
+            if env_path:
+                db_path = env_path
+            else:
+                # Default to user's home directory for persistence across uvx runs
+                db_path = Path.home() / ".text-adventure-handler" / "adventure_handler.db"
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 

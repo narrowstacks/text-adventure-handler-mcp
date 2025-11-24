@@ -5,7 +5,7 @@ from adventure_handler.server import (
     list_adventures,
     start_adventure,
     take_action,
-    modify_hp,
+    modify_state,
     db as server_db
 )
 
@@ -108,7 +108,8 @@ async def test_take_action(mock_db):
             mock_stat_check.assert_called()
 
 @pytest.mark.asyncio
-async def test_modify_hp(mock_db):
+async def test_modify_state_hp(mock_db):
+    """Test modify_state with hp action"""
     with patch("adventure_handler.server.db", mock_db):
         # Setup session
         from datetime import datetime
@@ -126,11 +127,62 @@ async def test_modify_hp(mock_db):
             )
         )
         mock_db.get_session.return_value = session
-        
-        # Heal
-        result = await modify_hp.fn(session_id="sess1", amount=3)
+
+        # Heal using modify_state
+        result = await modify_state.fn(session_id="sess1", action="hp", value=3)
+        assert result["success"] is True
+        assert result["action"] == "hp"
         assert result["new_hp"] == 8
         assert result["change"] == 3
         assert session.state.hp == 8 # Should update the object too
-        
+
         mock_db.update_player_state.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_modify_state_score(mock_db):
+    """Test modify_state with score action"""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Start",
+                stats={},
+                score=100
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        result = await modify_state.fn(session_id="sess1", action="score", value=50)
+        assert result["success"] is True
+        assert result["action"] == "score"
+        assert result["new_score"] == 150
+        assert result["change"] == 50
+
+@pytest.mark.asyncio
+async def test_modify_state_location(mock_db):
+    """Test modify_state with location action"""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Start",
+                stats={}
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        result = await modify_state.fn(session_id="sess1", action="location", value="Town Square")
+        assert result["success"] is True
+        assert result["action"] == "location"
+        assert result["new_location"] == "Town Square"
+        assert session.state.location == "Town Square"

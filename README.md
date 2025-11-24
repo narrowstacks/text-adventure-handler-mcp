@@ -22,6 +22,60 @@ An MCP (Model Context Protocol) server that enables AI agents to run interactive
   - **Batch Execution**: `execute_batch` allows performing multiple game actions in a single turn for efficiency
   - **Word Randomization**: Predefined or AI-generated word lists for dynamic names and descriptions
 - **Concise MCP Descriptions**: Optimized for AI context usage
+- **Web UI Dashboard**: Optional visual interface for managing adventures and game state
+- **Web UI Dashboard**: Visual interface for managing adventures, sessions, and game state (optional)
+
+## Web UI Interface
+
+The project includes an optional web-based dashboard that provides a visual interface for managing your text adventures. The web UI runs alongside the MCP server and allows you to:
+
+- View and manage active game sessions
+- Monitor player state, inventory, and stats
+- Browse adventure history and summaries
+- Manage characters, locations, and items
+- Track game time and faction relationships
+
+### Quick Start with Web UI
+
+1. **Prerequisites**: Docker and Docker Compose
+2. **Initialize the MCP server first** to create the database:
+   ```bash
+   uv run python -m adventure_handler
+   # Press Ctrl+C after initialization
+   ```
+3. **Start the web interface**:
+   ```bash
+   cd web
+   docker-compose up --build
+   ```
+4. **Access the dashboard**: Open [http://localhost:3000](http://localhost:3000)
+
+### Web UI Configuration
+
+The web UI connects to the default database path: `~/.text-adventure-handler/adventure_handler.db`
+
+If your database is located elsewhere, update the `HOST_DB_PATH` environment variable:
+
+```bash
+export HOST_DB_PATH="/path/to/your/adventure_handler.db"
+docker-compose up --build
+```
+
+### Development Mode
+
+For development without Docker:
+
+```bash
+# Backend (port 3001)
+cd web/backend
+npm install
+npm run dev
+
+# Frontend (port 5173)
+cd web/frontend  
+npm install
+npm run dev
+```
 
 ## Installation
 
@@ -83,9 +137,73 @@ To use this MCP server with Claude Desktop, you need to configure it in your Cla
 }
 ```
 
-#### 3. Restart Claude Desktop
+#### 3. Optional Configuration
+
+You can customize the server behavior with additional environment variables:
+
+**Custom Database Location**
+
+```json
+{
+  "mcpServers": {
+    "text-adventure": {
+      "command": "uvx",
+      "args": ["text-adventure-handler-mcp"],
+      "env": {
+        "ADVENTURE_DB_PATH": "/custom/path/to/adventure_handler.db"
+      }
+    }
+  }
+}
+```
+
+**Enable Web Server**
+
+```json
+{
+  "mcpServers": {
+    "text-adventure": {
+      "command": "uvx",
+      "args": ["text-adventure-handler-mcp"],
+      "env": {
+        "ENABLE_WEB_SERVER": "true",
+        "WEB_SERVER_PORT": "8080"
+      }
+    }
+  }
+}
+```
+
+**Combined Configuration**
+
+```json
+{
+  "mcpServers": {
+    "text-adventure": {
+      "command": "uvx",
+      "args": ["text-adventure-handler-mcp"],
+      "env": {
+        "ADVENTURE_DB_PATH": "/custom/path/to/adventure_handler.db",
+        "ENABLE_WEB_SERVER": "true",
+        "WEB_SERVER_PORT": "8080"
+      }
+    }
+  }
+}
+```
+
+**Environment Variables:**
+- `ADVENTURE_DB_PATH`: Custom path to the SQLite database (default: `~/.text-adventure-handler/adventure_handler.db`)
+- `ENABLE_WEB_SERVER`: Set to `"true"` to enable the built-in web server (default: `"false"`)
+- `WEB_SERVER_PORT`: Port for the web server (default: `"8080"`)
+
+#### 4. Restart Claude Desktop
 
 Completely quit and restart Claude Desktop for the changes to take effect.
+
+#### 5. Access Web UI (if enabled)
+
+If you enabled the web server, access it at [http://localhost:8080](http://localhost:8080) (or your custom port).
 
 ## Quick Start
 
@@ -148,9 +266,7 @@ This MCP is designed to help the AI act as a competent Game Master (GM). The rec
 | `take_action(...)`  | Perform a general skill check or narrative action. |
 | `combat_round(...)` | Resolve a round of combat (Player vs Enemy).       |
 | `roll_check(...)`   | Make a specific stat check or raw d20 roll.        |
-| `modify_hp(...)`    | Heal or damage the player.                         |
-| `modify_stat(...)`  | Permanently increase/decrease a player stat.       |
-| `update_score(...)` | Award points for achievements.                     |
+| `modify_state(...)` | Modify HP, stats, score, or location.              |
 | `update_quest(...)` | Start, update, or complete quests.                 |
 
 ### World Management (Modular)
@@ -175,20 +291,11 @@ This MCP is designed to help the AI act as a competent Game Master (GM). The rec
 
 ### State & Information (Consolidated)
 
-| Tool                       | Purpose                                                                                                   |
-| :------------------------- | :-------------------------------------------------------------------------------------------------------- |
-| `get_session_info(...)`    | **Consolidated tool**: Get state, history, character memories, nearby entities. Replaces 3 separate tools. |
-| `manage_inventory(...)`    | **Consolidated tool**: Add, remove, update, check, list, or use inventory items.                          |
-| `manage_summary(...)`      | **Consolidated tool**: Create, get, or delete session summaries for long-term continuity.                 |
-
-**Note:** The following tools have been replaced by consolidated versions:
-- `get_state()` → `get_session_info(include_state=True)`
-- `get_history()` → `get_session_info(include_history=True)`
-- `get_character_memories()` → `get_session_info(include_character_memories="name")`
-- `add_inventory()` → `manage_inventory(action="add")`
-- `remove_inventory()` → `manage_inventory(action="remove")`
-- `summarize_progress()` → `manage_summary(action="create")`
-- `get_adventure_summary()` → `manage_summary(action="get")`
+| Tool                    | Purpose                                                                       |
+| :---------------------- | :---------------------------------------------------------------------------- |
+| `get_session_info(...)` | Get state, history, character memories, and nearby entities in a single call. |
+| `manage_inventory(...)` | Add, remove, update, check, list, or use inventory items.                     |
+| `manage_summary(...)`   | Create, get, or delete session summaries for long-term continuity.            |
 
 ### Content Generation
 
@@ -267,56 +374,90 @@ Create a JSON file in `src/adventure_handler/adventures/`:
 
 Refer to existing JSON files for the structure of `stats`, `word_lists`, and other configuration options like `currency_config` or `time_config`.
 
-## Tool Consolidation & Context Optimization
+## Unified Tool Design
 
-To reduce context consumption in MCP clients, several commonly-used tools have been consolidated into unified APIs:
+The MCP tools follow a consolidated design pattern to optimize context usage and simplify the API:
 
-### Why Consolidation?
+### Information Gathering - `get_session_info()`
 
-Each MCP tool consumes context in AI agents. By consolidating related operations into single tools with action parameters, we:
-- **Reduce tool count** from 36 to 32 (11% reduction)
-- **Enable multi-operation queries** (e.g., get state + history in one call)
-- **Add new functionality** without increasing tool count
-- **Maintain backward compatibility** through clear migration paths
+Retrieve multiple types of game information in a single call:
 
-### Consolidated Tools
-
-#### `get_session_info()` - All Information Gathering
-
-Replaces 3 separate tools: `get_state()`, `get_history()`, `get_character_memories()`
-
-**Example:**
 ```python
-# Old way (3 separate tool calls):
-state = get_state(session_id)
-history = get_history(session_id, limit=10)
-memories = get_character_memories(session_id, "Merchant")
-
-# New way (1 tool call):
 info = get_session_info(
     session_id,
-    include_state=True,
-    include_history=True,
-    include_character_memories="Merchant",
-    history_limit=10
+    include_state=True,              # Current location, stats, HP, inventory
+    include_history=True,             # Recent action history
+    include_character_memories="Merchant",  # NPC memories
+    include_nearby_characters=True,   # Characters at current location
+    include_available_items=True,     # Items at current location
+    history_limit=10,
+    memory_limit=10
 )
 ```
 
-#### `manage_inventory()` - All Inventory Operations
+### Inventory Management - `manage_inventory()`
 
-Replaces 2 tools and adds 4 new operations: `add_inventory()`, `remove_inventory()` + `update`, `check`, `list`, `use`
+All inventory operations through a single tool:
 
-**Actions:** `add`, `remove`, `update`, `check`, `list`, `use`
+```python
+# Add item
+manage_inventory(session_id, action="add", item_name="Sword", quantity=1)
 
-#### `manage_summary()` - Session Summary Management
+# Remove item
+manage_inventory(session_id, action="remove", item_name="Potion")
 
-Replaces 2 tools and adds 2 new operations: `summarize_progress()`, `get_adventure_summary()` + `get_latest`, `delete`
+# Check if item exists
+manage_inventory(session_id, action="check", item_name="Key")
 
-**Actions:** `create`, `get`, `get_latest`, `delete`
+# List all inventory
+manage_inventory(session_id, action="list")
 
-### Migration Guide
+# Use/consume item
+manage_inventory(session_id, action="use", item_name="Healing Potion")
 
-See the [CLAUDE.md](CLAUDE.md#consolidated-tools-context-optimization) file for detailed migration examples and code patterns.
+# Update item properties
+manage_inventory(session_id, action="update", item_name="Sword",
+                 properties={"enchanted": True})
+```
+
+### Session Summaries - `manage_summary()`
+
+Create and retrieve story summaries for long-term continuity:
+
+```python
+# Create summary when ending a play session
+manage_summary(session_id, action="create",
+               summary="Player defeated the dragon...",
+               key_events=["Found magic sword", "Met wizard"],
+               character_changes=["Gained confidence", "Lost innocence"])
+
+# Get all summaries to recap the story
+manage_summary(session_id, action="get")
+
+# Get only the latest summary
+manage_summary(session_id, action="get_latest")
+
+# Delete a specific summary
+manage_summary(session_id, action="delete", summary_id="abc123")
+```
+
+### State Modifications - `modify_state()`
+
+All player state changes through action-based API:
+
+```python
+# Heal/damage HP
+modify_state(session_id, action="hp", value=-10, reason="Fell down stairs")
+
+# Modify stats (temporary or permanent changes)
+modify_state(session_id, action="stat", stat_name="Dexterity", value=-1)
+
+# Award/deduct points
+modify_state(session_id, action="score", value=100)
+
+# Move to new location
+modify_state(session_id, action="location", value="Hospital")
+```
 
 ## License
 

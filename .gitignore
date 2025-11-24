@@ -155,3 +155,8 @@ adventure_handler.db
 
 # server
 *.db
+
+# web UI
+web/backend/node_modules
+web/frontend/node_modules
+web/frontend/dist

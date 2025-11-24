@@ -128,8 +128,8 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
         commands: List of commands, e.g. [{"tool": "move_to_location", "args": {"location": "North"}}]
 
     Allowed tools:
-    - take_action, move_to_location, combat_round
-    - manage_inventory, modify_hp, modify_stat, update_score
+    - take_action, combat_round
+    - manage_inventory, modify_state
     - update_quest, interact_npc, record_event, add_character_memory
     - manage_character, manage_location, manage_item
     - manage_status_effect, manage_time, manage_faction, manage_economy, manage_summary
@@ -138,14 +138,11 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
     # Note: We refer to the functions available in this module's scope
     tool_map = {
         "take_action": take_action,
-        "move_to_location": move_to_location,
         "combat_round": combat_round,
         "manage_inventory": manage_inventory,
-        "modify_hp": modify_hp,
+        "modify_state": modify_state,
         "update_quest": update_quest,
         "interact_npc": interact_npc,
-        "modify_stat": modify_stat,
-        "update_score": update_score,
         "record_event": record_event,
         "add_character_memory": add_character_memory,
         "manage_character": manage_character,
@@ -673,32 +670,6 @@ async def combat_round(
 
 
 @mcp.tool()
-async def modify_hp(session_id: str, amount: int, reason: str = None) -> dict:
-    """
-    Modify player HP (healing or damage).
-    Positive amount heals, negative amount deals damage.
-    """
-    session = await db.get_session(session_id)
-    if not session:
-        return {"error": f"Session {session_id} not found"}
-
-    old_hp = session.state.hp
-    new_hp = session.state.hp + amount
-    new_hp = max(0, min(session.state.max_hp, new_hp))
-    
-    session.state.hp = new_hp
-    await db.update_player_state(session_id, session.state)
-    
-    return {
-        "old_hp": old_hp,
-        "new_hp": new_hp,
-        "change": amount,
-        "reason": reason,
-        "status": "Unconscious/Dead" if new_hp == 0 else "Alive"
-    }
-
-
-@mcp.tool()
 async def update_quest(
     session_id: str,
     quest_id: str,
@@ -781,41 +752,6 @@ async def interact_npc(session_id: str, npc_name: str, sentiment_change: int) ->
 
 
 @mcp.tool()
-async def modify_stat(session_id: str, stat_name: str, change: int) -> dict:
-    """
-    Increase or decrease a player stat by the specified amount.
-    """
-    session = await db.get_session(session_id)
-    if not session:
-        return {"error": f"Session {session_id} not found"}
-
-    if stat_name not in session.state.stats:
-        return {"error": f"Stat '{stat_name}' not found"}
-
-    adventure = await db.get_adventure(session.adventure_id)
-    stat_def = next((s for s in adventure.stats if s.name == stat_name), None)
-
-    old_value = session.state.stats[stat_name]
-    new_value = old_value + change
-
-    # Clamp to stat bounds
-    if stat_def:
-        new_value = max(stat_def.min_value, min(stat_def.max_value, new_value))
-    else:
-        new_value = max(0, min(20, new_value))
-
-    session.state.stats[stat_name] = new_value
-    await db.update_player_state(session_id, session.state)
-
-    return {
-        "stat": stat_name,
-        "old_value": old_value,
-        "new_value": new_value,
-        "change": change,
-    }
-
-
-@mcp.tool()
 async def roll_check(session_id: str, stat_name: str = None, difficulty_class: int = 10) -> dict:
     """Perform a stat check or plain d20 roll."""
     session = await db.get_session(session_id)
@@ -834,16 +770,124 @@ async def roll_check(session_id: str, stat_name: str = None, difficulty_class: i
 
 
 @mcp.tool()
-async def move_to_location(session_id: str, location: str) -> dict:
-    """Move player to a new location."""
+async def modify_state(
+    session_id: str,
+    action: str,
+    value: int | str = None,
+    stat_name: str = None,
+    reason: str = None
+) -> dict:
+    """
+    Modular tool for player state modification operations.
+
+    This consolidated tool replaces modify_hp(), modify_stat(), update_score(), and move_to_location().
+
+    Actions:
+    - hp: Modify HP (requires value as int, positive heals/negative damages, optional reason)
+    - stat: Modify stat (requires stat_name and value as int change amount)
+    - score: Update score (requires value as int points to add/subtract)
+    - location: Move player (requires value as location string)
+    """
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
 
-    session.state.location = location
-    await db.update_player_state(session_id, session.state)
+    if action == "hp":
+        if value is None:
+            return {"error": "value required for hp action (amount to heal/damage)"}
+        if not isinstance(value, int):
+            return {"error": "value must be an integer for hp action"}
 
-    return {"location": location, "message": f"Moved to {location}"}
+        old_hp = session.state.hp
+        new_hp = session.state.hp + value
+        new_hp = max(0, min(session.state.max_hp, new_hp))
+
+        session.state.hp = new_hp
+        await db.update_player_state(session_id, session.state)
+
+        return {
+            "success": True,
+            "action": "hp",
+            "old_hp": old_hp,
+            "new_hp": new_hp,
+            "change": value,
+            "reason": reason,
+            "status": "Unconscious/Dead" if new_hp == 0 else "Alive"
+        }
+
+    elif action == "stat":
+        if not stat_name:
+            return {"error": "stat_name required for stat action"}
+        if value is None:
+            return {"error": "value required for stat action (amount to change)"}
+        if not isinstance(value, int):
+            return {"error": "value must be an integer for stat action"}
+
+        if stat_name not in session.state.stats:
+            return {"error": f"Stat '{stat_name}' not found"}
+
+        adventure = await db.get_adventure(session.adventure_id)
+        stat_def = next((s for s in adventure.stats if s.name == stat_name), None)
+
+        old_value = session.state.stats[stat_name]
+        new_value = old_value + value
+
+        # Clamp to stat bounds
+        if stat_def:
+            new_value = max(stat_def.min_value, min(stat_def.max_value, new_value))
+        else:
+            new_value = max(0, min(20, new_value))
+
+        session.state.stats[stat_name] = new_value
+        await db.update_player_state(session_id, session.state)
+
+        return {
+            "success": True,
+            "action": "stat",
+            "stat": stat_name,
+            "old_value": old_value,
+            "new_value": new_value,
+            "change": value,
+        }
+
+    elif action == "score":
+        if value is None:
+            return {"error": "value required for score action (points to add/subtract)"}
+        if not isinstance(value, int):
+            return {"error": "value must be an integer for score action"}
+
+        old_score = session.state.score
+        session.state.score += value
+        await db.update_player_state(session_id, session.state)
+
+        return {
+            "success": True,
+            "action": "score",
+            "old_score": old_score,
+            "new_score": session.state.score,
+            "change": value
+        }
+
+    elif action == "location":
+        if value is None:
+            return {"error": "value required for location action (new location name)"}
+        if not isinstance(value, str):
+            return {"error": "value must be a string for location action"}
+
+        old_location = session.state.location
+        session.state.location = value
+        await db.update_player_state(session_id, session.state)
+
+        return {
+            "success": True,
+            "action": "location",
+            "old_location": old_location,
+            "new_location": value,
+            "message": f"Moved to {value}"
+        }
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: hp, stat, score, location"}
 
 
 @mcp.tool()
@@ -1013,20 +1057,6 @@ async def manage_inventory(
 
     else:
         return {"error": f"Unknown action: {action}. Valid actions: add, remove, update, check, list, use"}
-
-
-@mcp.tool()
-async def update_score(session_id: str, points: int) -> dict:
-    """Add or subtract points from score."""
-    session = await db.get_session(session_id)
-    if not session:
-        return {"error": f"Session {session_id} not found"}
-
-    session.state.score += points
-    await db.update_player_state(session_id, session.state)
-
-    return {"score": session.state.score, "change": points}
-
 
 
 
