@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/narrowstacks/text-adventure-handler-mcp-backend:latest
+    image: ghcr.io/narrowstacks/text-adventure-handler-mcp:latest
     ports:
       - "3001:3001"
     environment:
