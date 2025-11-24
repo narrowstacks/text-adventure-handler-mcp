@@ -1,6 +1,6 @@
 # Text Adventure Handler MCP
 
-An MCP (Model Context Protocol) server that enables AI agents to run interactive text adventures with persistent game state, dice-based action resolution, and adventure-specific character stats.
+An MCP (Model Context Protocol) server that enables AI agents to run interactive text adventures with persistent game state, dice-based action resolution, adventure-specific character stats, and dynamic world management.
 
 ## Features
 
@@ -8,15 +8,19 @@ An MCP (Model Context Protocol) server that enables AI agents to run interactive
 - **Character Creation**: Players can name their character and roll stats (4d6 drop lowest) or use custom/default values
 - **Game Sessions**: Track player progress across multiple parallel games
 - **Dynamic Stats**: Define custom stats per adventure (e.g., D&D classes have STR/DEX/INT, sci-fi has PILOT/TECH/PERSUADE)
-- **Stat Modification**: Characters' stats can be increased or decreased during play based on story events (e.g., drinking alcohol decreases Intelligence)
-- **Session Summaries**: AI-generated summaries of play sessions with key events and character changes for story continuity
-- **Dice System**: d20-based action resolution with stat modifiers
-- **Progress Persistence**: SQLite database stores all game state and history
-- **Story Generation**: Designed to work with Claude for generating story beats and outcomes
-- **Flexible Actions**: Players can attempt anything; success depends on dice rolls and stat checks
-- **Score Tracking**: Award points for achievements and clever solutions
-- **Word Randomization**: Predefined word lists for dynamic names, locations, and items (or AI-generated alternatives)
-- **Dynamic Entity Creation**: AI can create new characters, locations, and items on-the-fly during gameplay
+- **Dice System**: d20-based action resolution with stat modifiers and difficulty classes
+- **Progress Persistence**: SQLite database stores all game state, history, and world changes
+- **Advanced World Management**:
+  - **Dynamic Entities**: Create and manage Characters, Locations, and Items on-the-fly
+  - **Economy System**: Track currency, buy/sell items, and manage transactions
+  - **Time Tracking**: Manage game time, day/night cycles, and time-based events
+  - **Faction System**: Track reputation with different groups (Hostile to Revered)
+  - **Status Effects**: Apply temporary buffs or debuffs with duration tracking
+  - **Memory & Perception**: NPCs witness events and form memories that influence their behavior
+- **AI Narrator Tools**:
+  - **Internal Monologue**: `narrator_thought` allows the AI to plan story beats privately
+  - **Batch Execution**: `execute_batch` allows performing multiple game actions in a single turn for efficiency
+  - **Word Randomization**: Predefined or AI-generated word lists for dynamic names and descriptions
 - **Concise MCP Descriptions**: Optimized for AI context usage
 
 ## Installation
@@ -30,17 +34,9 @@ To use this MCP server with Claude Desktop, you need to configure it in your Cla
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-Or use Claude Desktop's built-in editor:
-
-1. Open Claude Desktop Settings (system menu bar)
-2. Navigate to **Developer** tab
-3. Click **Edit Config**
-
 #### 2. Add Server Configuration
 
 **Option A: Using uvx (Recommended - no installation needed)**
-
-Add this to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -87,104 +83,26 @@ Add this to your `claude_desktop_config.json`:
 }
 ```
 
-**Option D: Traditional Python installation**
-
-First install the package:
-
-```bash
-# Clone the repository
-git clone https://github.com/narrowstacks/text-adventure-handler-mcp.git
-cd text-adventure-handler-mcp
-
-# Install with pip
-pip install -e .
-```
-
-Then configure Claude:
-
-```json
-{
-  "mcpServers": {
-    "text-adventure": {
-      "command": "text-adventure-handler-mcp"
-    }
-  }
-}
-```
-
 #### 3. Restart Claude Desktop
 
 Completely quit and restart Claude Desktop for the changes to take effect.
 
-#### 4. Verify Connection
-
-Look for the MCP server indicator in the bottom-right corner of Claude Desktop. You should see "text-adventure" listed as a connected server.
-
-#### Troubleshooting
-
-If the server doesn't connect:
-
-1. **Check logs**:
-
-   - **macOS/Linux**: `~/Library/Logs/Claude/mcp*.log`
-   - **Windows**: `%APPDATA%\Claude\logs`
-
-2. **Test the server manually**:
-
-   ```bash
-   uvx text-adventure-handler-mcp
-   ```
-
-3. **Verify uv/uvx is installed**:
-   ```bash
-   uvx --version
-   ```
-   If not installed, follow the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/)
-
-### Standalone Usage (Without Claude Desktop)
-
-You can also run the server standalone for testing or use with other MCP clients:
-
-```bash
-# Using uvx (no installation needed)
-uvx text-adventure-handler-mcp
-
-# Or from local directory
-uvx --from . text-adventure-handler-mcp
-
-# Or if installed traditionally
-text-adventure-handler-mcp
-```
-
 ## Quick Start
 
-### 1. Run the Server
+### 1. Initial Instructions
 
-The server automatically loads sample adventures on startup:
+The server provides a helper tool to understand the workflow:
 
-```bash
-# Using UV
-uvx text-adventure-handler-mcp
-
-# Or if installed traditionally
-text-adventure-handler-mcp
 ```
-
-The server will:
-
-- Load sample adventures from JSON files
-- Initialize the SQLite database
-- Start the MCP server ready to accept connections
+Tool: initial_instructions()
+Returns: Overview of available adventures and how to start.
+```
 
 ### 2. List Available Adventures
 
 ```
 Tool: list_adventures()
-Returns: [
-  {"id": "fantasy_dungeon", "title": "The Crystal Caverns", "description": "..."},
-  {"id": "scifi_station", "title": "Station Anomaly", "description": "..."},
-  {"id": "noir_detective", "title": "The Jade Dragon Case", "description": "..."}
-]
+Returns: List of adventure metadata (id, title, description)
 ```
 
 ### 3. Start a Game Session
@@ -192,159 +110,145 @@ Returns: [
 ```
 Tool: start_adventure(
   adventure_id="fantasy_dungeon",
-  character_name="Aragorn",  # Optional: name your character
-  roll_stats=True  # Optional: roll stats with 4d6 drop lowest
+  character_name="Aragorn",
+  roll_stats=True
 )
-Returns: {
-  "session_id": "uuid-string",
-  "title": "The Crystal Caverns",
-  "location": "Dungeon Entrance",
-  "story": "Initial story text...",
-  "stats": {"Strength": 14, "Dexterity": 12, ...},  # Rolled stats
-  "score": 0,
-  "character_name": "Aragorn"
-}
 ```
+
+## Narrator Workflow
+
+This MCP is designed to help the AI act as a competent Game Master (GM). The recommended workflow for every turn is:
+
+1.  **Analyze User Input**: Understand what the player wants to do.
+2.  **Plan (Internal Monologue)**: Use `narrator_thought` to:
+    - Check if the action follows rules.
+    - Determine necessary stat checks (DC).
+    - Plan story consequences.
+    - Decide on tool calls.
+3.  **Execute Actions**: Use `execute_batch` (or individual tools) to update the game state (move, inventory, combat, etc.).
+4.  **Narrate**: Describe the outcome to the player based on the tool results.
 
 ## MCP Tools Reference
 
-### Core Tools
+### Core Workflow
 
-| Tool                                                                                             | Purpose                                                | Returns                        |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------ |
-| `list_adventures()`                                                                              | View all available adventures                          | List of adventure metadata     |
-| `start_adventure(adventure_id, randomize_initial?, character_name?, roll_stats?, custom_stats?)` | Begin a new game with optional character customization | Session ID + initial state     |
-| `continue_adventure(session_id)`                                                                 | Resume an existing adventure                           | Current state + recent history |
-| `get_state(session_id)`                                                                          | Get current game state                                 | Full player state              |
-| `take_action(session_id, action, stat_name?, difficulty_class?)`                                 | Perform an action                                      | Success/failure + outcome      |
-| `roll_check(session_id, stat_name?, difficulty_class?)`                                          | Make a stat check                                      | Dice roll result               |
+| Tool                             | Purpose                                                                     |
+| :------------------------------- | :-------------------------------------------------------------------------- |
+| `initial_instructions()`         | Get started guide and list of adventures.                                   |
+| `get_rules(section_name?)`       | Retrieve specific rule sections (guidelines, mechanics, etc.).              |
+| `narrator_thought(...)`          | **CRITICAL**: Log internal thoughts, story status, and plans before acting. |
+| `execute_batch(commands)`        | **CRITICAL**: Execute multiple state-changing tools in one go.              |
+| `start_adventure(...)`           | Begin a new game session.                                                   |
+| `continue_adventure(session_id)` | Resume an existing session.                                                 |
 
-### State Management
+### Game Mechanics
 
-| Tool                                         | Purpose                                                 |
-| -------------------------------------------- | ------------------------------------------------------- |
-| `modify_stat(session_id, stat_name, change)` | Increase/decrease stat by amount (positive or negative) |
-| `move_to_location(session_id, location)`     | Move to new location                                    |
-| `add_inventory(session_id, item)`            | Add item to inventory                                   |
-| `remove_inventory(session_id, item)`         | Remove item                                             |
-| `update_score(session_id, points)`           | Add/subtract score                                      |
+| Tool                | Purpose                                            |
+| :------------------ | :------------------------------------------------- |
+| `take_action(...)`  | Perform a general skill check or narrative action. |
+| `combat_round(...)` | Resolve a round of combat (Player vs Enemy).       |
+| `roll_check(...)`   | Make a specific stat check or raw d20 roll.        |
+| `modify_hp(...)`    | Heal or damage the player.                         |
+| `modify_stat(...)`  | Permanently increase/decrease a player stat.       |
+| `update_score(...)` | Award points for achievements.                     |
+| `update_quest(...)` | Start, update, or complete quests.                 |
 
-### Session Continuity
+### World Management (Modular)
 
-| Tool                                                                       | Purpose                                     |
-| -------------------------------------------------------------------------- | ------------------------------------------- |
-| `summarize_progress(session_id, summary, key_events?, character_changes?)` | Create session summary for story continuity |
-| `get_adventure_summary(session_id)`                                        | Get all summaries to recap the story so far |
+| Tool                        | Purpose                                                          |
+| :-------------------------- | :--------------------------------------------------------------- |
+| `manage_character(...)`     | Create, Read, Update, Delete, List NPCs/Characters.              |
+| `manage_location(...)`      | Create, Read, Update, Delete, List Locations.                    |
+| `manage_item(...)`          | Create, Read, Update, Delete, List Items in the world.           |
+| `manage_faction(...)`       | Create factions and manage reputation/relationships.             |
+| `manage_economy(...)`       | Handle currency, buying, selling, and item transfers.            |
+| `manage_time(...)`          | Advance time, set time, or get current game time/day.            |
+| `manage_status_effect(...)` | Apply, remove, or list temporary status effects (buffs/debuffs). |
 
-### Dynamic Entity Creation
+### Perception & Memory
 
-| Tool                                                                                  | Purpose                        |
-| ------------------------------------------------------------------------------------- | ------------------------------ |
-| `create_character(session_id, name, description, location, stats?, properties?)`      | Create a new NPC/character     |
-| `list_characters(session_id, location?)`                                              | List all characters in session |
-| `get_character(character_id)`                                                         | Get character details          |
-| `update_character(character_id, name?, description?, location?, stats?, properties?)` | Update character properties    |
-| `create_location(session_id, name, description, connected_to?, properties?)`          | Create a new location          |
-| `list_locations(session_id)`                                                          | List all locations in session  |
-| `get_location(location_id)`                                                           | Get location details           |
-| `update_location(location_id, name?, description?, connected_to?, properties?)`       | Update location properties     |
-| `create_item(session_id, name, description, location?, properties?)`                  | Create a new item              |
-| `list_items(session_id, location?)`                                                   | List all items in session      |
-| `get_item(item_id)`                                                                   | Get item details               |
-| `update_item(item_id, name?, description?, location?, properties?)`                   | Update item properties         |
+| Tool                        | Purpose                                                                                                                                               |
+| :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `record_event(...)`         | Log a public event at a location. Updates witnesses' memories automatically.                                                                          |
+| `add_character_memory(...)` | Implant a specific memory (rumor/secret) into an NPC.                                                                                                 |
+| `interact_npc(...)`         | Simple relationship update (deprecated in favor of `manage_faction` or `record_event` for complex interactions, but still useful for simple changes). |
 
-### Information Retrieval
+### State & Information (Consolidated)
 
-| Tool                              | Purpose            |
-| --------------------------------- | ------------------ |
-| `get_history(session_id, limit?)` | Get action history |
+| Tool                       | Purpose                                                                                                   |
+| :------------------------- | :-------------------------------------------------------------------------------------------------------- |
+| `get_session_info(...)`    | **Consolidated tool**: Get state, history, character memories, nearby entities. Replaces 3 separate tools. |
+| `manage_inventory(...)`    | **Consolidated tool**: Add, remove, update, check, list, or use inventory items.                          |
+| `manage_summary(...)`      | **Consolidated tool**: Create, get, or delete session summaries for long-term continuity.                 |
 
-### Batch Operations
+**Note:** The following tools have been replaced by consolidated versions:
+- `get_state()` → `get_session_info(include_state=True)`
+- `get_history()` → `get_session_info(include_history=True)`
+- `get_character_memories()` → `get_session_info(include_character_memories="name")`
+- `add_inventory()` → `manage_inventory(action="add")`
+- `remove_inventory()` → `manage_inventory(action="remove")`
+- `summarize_progress()` → `manage_summary(action="create")`
+- `get_adventure_summary()` → `manage_summary(action="get")`
 
-| Tool                            | Purpose                                  |
-| ------------------------------- | ---------------------------------------- |
-| `python_eval(session_id, code)` | Execute Python for multi-step operations |
+### Content Generation
 
-### Word Randomization
-
-| Tool                                                                          | Purpose                              |
-| ----------------------------------------------------------------------------- | ------------------------------------ |
-| `randomize_word(session_id, word_list_name, category_name?, use_predefined?)` | Get predefined or AI-generated words |
-
-## MCP Resources
-
-Access game information in AI-readable formats:
-
-- **`adventure://prompt/{adventure_id}`**: Get the adventure prompt and stat definitions
-- **`session://state/{session_id}`**: Current game state as JSON
-- **`session://history/{session_id}`**: Full action history as JSON
-- **`session://characters/{session_id}`**: All characters in the session as JSON
-- **`session://locations/{session_id}`**: All locations in the session as JSON
-- **`session://items/{session_id}`**: All items in the session as JSON
+| Tool                            | Purpose                                                              |
+| :------------------------------ | :------------------------------------------------------------------- |
+| `randomize_word(...)`           | Get a random name/place/item from predefined lists or AI generation. |
+| `generate_initial_content(...)` | Helper to generate a custom opening scenario before starting.        |
 
 ## Sample Adventures
 
-### 1. The Crystal Caverns (fantasy_dungeon)
+### 1. The Crystal Caverns (`fantasy_dungeon`)
 
-Explore a magical dungeon in search of the Crystal of Power.
+Classic fantasy dungeon crawl.
 
-**Stats**: Strength, Dexterity, Intelligence, Wisdom, Charisma
+- **Stats**: Strength, Dexterity, Intelligence, Wisdom, Charisma.
+- **Features**: Monsters, traps, magic, and loot.
 
-**Features**:
+### 2. Station Anomaly (`scifi_station`)
 
-- Environmental puzzles and challenges
-- Combat encounters with monsters
-- Treasure discovery and loot
-- Magic system integration
+Deep-space horror and mystery.
 
-### 2. Station Anomaly (scifi_station)
+- **Stats**: Piloting, Technical, Combat, Persuade.
+- **Features**: Hacking, alien threats, system repairs.
 
-Investigate mysterious events on a deep-space research station.
+### 3. The Jade Dragon Case (`noir_detective`)
 
-**Stats**: Piloting, Technical, Combat, Persuade
+Gritty urban murder mystery.
 
-**Features**:
+- **Stats**: Investigation, Intimidate, Sneak, Street_Smarts.
+- **Features**: Interrogation, clues, moral ambiguity.
 
-- System hacking and repairs
-- Alien encounters
-- Crew interaction and mystery
-- Time pressure and resource management
+### 4. Checkout Chaos (`checkout_chaos`)
 
-### 3. The Jade Dragon Case (noir_detective)
+Post-apocalyptic survival comedy in a mega-mart.
 
-Solve a murder mystery in a gritty urban setting.
+- **Stats**: Scavenge, Improvisation, Diplomacy, Cart_Control.
+- **Features**: Crafting weapons from junk, aisle factions, absurd corporate announcements.
 
-**Stats**: Investigation, Intimidate, Sneak, Street_Smarts
+### 5. Clockwork Conspiracy (`clockwork_conspiracy`)
 
-**Features**:
+Steampunk political intrigue.
 
-- Crime scene investigation
-- Suspect interrogation
-- Red herrings and twists
-- Moral ambiguity
+- **Stats**: Engineering, Panache, Shadowstep, Duel.
+- **Features**: Gadgets, high-society galas, rooftop chases, secret plots.
 
-## Dice Rolling System
+### 6. Shadows of the Cursed Shores (`cursed_shores`)
 
-The system uses **d20 + modifier** resolution:
+Nautical horror and piracy.
 
-```
-Roll = d20 (1-20) + Stat Modifier
-Stat Modifier = (Stat Value - 10) / 2, rounded down
+- **Stats**: Swordplay, Seamanship, Cunning, Grit.
+- **Features**: Ship management, ghost crews, cursed treasure, naval combat.
 
-Success = Roll >= Difficulty Class (DC)
-```
+### 7. The Void Claim (`void_claim`)
 
-**Difficulty Classes**:
+Sci-fi insurance investigation in a derelict ship.
 
-- DC 10: Easy
-- DC 12: Medium
-- DC 15: Hard
-- DC 18: Very Hard
-- DC 20: Nearly Impossible
+- **Stats**: Investigation, Tech-Ops, Corporate Protocol, Survival.
+- **Features**: Bio-horrors, corporate bureaucracy, forensic analysis.
 
 ## Creating Custom Adventures
-
-### Method 1: JSON File
 
 Create a JSON file in `src/adventure_handler/adventures/`:
 
@@ -354,433 +258,65 @@ Create a JSON file in `src/adventure_handler/adventures/`:
   "title": "Adventure Title",
   "description": "Short description",
   "prompt": "System prompt for AI...",
-  "stats": [
-    {
-      "name": "Stat Name",
-      "description": "What this stat represents",
-      "default_value": 10,
-      "min_value": 0,
-      "max_value": 20
-    }
-  ],
+  "stats": [ ... ],
+  "word_lists": [ ... ],
   "initial_location": "Starting Location",
   "initial_story": "Opening narrative..."
 }
 ```
 
-### Method 2: Programmatically
+Refer to existing JSON files for the structure of `stats`, `word_lists`, and other configuration options like `currency_config` or `time_config`.
 
+## Tool Consolidation & Context Optimization
+
+To reduce context consumption in MCP clients, several commonly-used tools have been consolidated into unified APIs:
+
+### Why Consolidation?
+
+Each MCP tool consumes context in AI agents. By consolidating related operations into single tools with action parameters, we:
+- **Reduce tool count** from 36 to 32 (11% reduction)
+- **Enable multi-operation queries** (e.g., get state + history in one call)
+- **Add new functionality** without increasing tool count
+- **Maintain backward compatibility** through clear migration paths
+
+### Consolidated Tools
+
+#### `get_session_info()` - All Information Gathering
+
+Replaces 3 separate tools: `get_state()`, `get_history()`, `get_character_memories()`
+
+**Example:**
 ```python
-from adventure_handler.models import Adventure, StatDefinition
-from adventure_handler.server import db
-
-# Create stats
-stats = [
-    StatDefinition(name="Stat1", description="...", default_value=10),
-    StatDefinition(name="Stat2", description="...", default_value=10),
-]
-
-# Create adventure
-adventure = Adventure(
-    id="unique_id",
-    title="Title",
-    description="Description",
-    prompt="AI prompt...",
-    stats=stats,
-    initial_location="Start",
-    initial_story="Story...",
-)
-
-# Save to database
-db.add_adventure(adventure)
-```
-
-## Workflow Example: Using with Claude
-
-```
-User: "Let's play the Crystal Caverns adventure"
-
-Claude calls: start_adventure("fantasy_dungeon")
-Claude reads: adventure://prompt/fantasy_dungeon (gets detailed prompt)
-
-Claude: "You enter the dungeon. Three paths diverge before you.
-         Path A: Dark and narrow (requires Perception check)
-         Path B: Well-lit but suspicious (may be trapped)
-         Path C: Mysterious glow in distance (draws you forward)
-         What do you do?"
-
-User: "I try to climb the cavern wall to scout ahead"
-
-Claude calls: take_action(session_id, "Climb cavern wall", stat_name="Dexterity", difficulty_class=14)
-Claude receives: success=false, roll_message="Rolled 8, DC 14"
-
-Claude: "Your fingers slip on the damp stone. You manage to climb about 8 feet before
-         gravity wins. You tumble down, taking damage and landing with a painful thud.
-         You've learned that direct climbing isn't viable here."
-
-Claude calls: update_score(session_id, -5) # Penalty for failure
-Claude calls: get_state(session_id) # Check updated state
-
-... adventure continues with meaningful consequences for player choices
-```
-
-## Batch Operations with `python_eval()`
-
-For complex multi-step operations, use `python_eval()` to execute Python code directly. This is more efficient than multiple tool calls:
-
-```python
-code = """
-# Multi-step quest completion sequence
-if state.score < 100:
-    _result = "Not enough experience yet"
-else:
-    state.location = "Dragon's Lair"
-    state.inventory.append("Ancient Sword")
-    state.stats["Strength"] += 2
-    state.score += 250
-    _result = {
-        "quest": "completed",
-        "reward": "Ancient Sword",
-        "new_level": state.stats["Strength"]
-    }
-"""
-
-result = python_eval(session_id, code)
-```
-
-**Available in `python_eval()` scope:**
-
-- `session` - GameSession object
-- `state` - PlayerState (alias for session.state)
-- `db` - Database instance
-- `stat_check(value, dc)` - Perform stat check
-- `roll_check(dc)` - Roll d20
-
-**Return values:**
-
-- Assign to `_result` variable to return data
-- State changes automatically persist to database
-- Response includes updated game state
-
-## Word Randomization for Dynamic Content
-
-Each adventure defines **predefined word lists** with categorized words for names, locations, and items. Use the `randomize_word()` tool to either:
-
-1. Get a random predefined word (consistent within adventure)
-2. Request an AI-generated word (fresh and unique each time)
-
-### Word List Structure
-
-Adventures define words as categorized lists in their JSON:
-
-```json
-{
-  "word_lists": [
-    {
-      "name": "character_names",
-      "description": "NPC names for encounters",
-      "categories": {
-        "dwarf": ["Thorin", "Gimli", "Durin"],
-        "elf": ["Legolas", "Elrond", "Tauriel"],
-        "human": ["Aragorn", "Boromir", "Éowyn"]
-      }
-    },
-    {
-      "name": "location_names",
-      "description": "Room and area names",
-      "categories": {
-        "chamber": ["Hall of Shadows", "Vault of Whispers"],
-        "passage": ["Spiral Staircase", "Grand Hallway"]
-      }
-    }
-  ]
-}
-```
-
-### Usage Examples
-
-**Get a random predefined elf name:**
-
-```python
-result = randomize_word(
-    session_id=session_id,
-    word_list_name="character_names",
-    category_name="elf",
-    use_predefined=True
-)
-# Returns: {"source": "predefined", "word": "Legolas", "word_list": "character_names", "category": "elf"}
-```
-
-**Get an AI-generated location:**
-
-```python
-result = randomize_word(
-    session_id=session_id,
-    word_list_name="location_names",
-    category_name="chamber",
-    use_predefined=False
-)
-# Returns: {"source": "ai_generated", "prompt": "Generate a unique chamber name for a Fantasy Dungeon. Return only the word/name, no explanation.", ...}
-```
-
-**Get any random item name:**
-
-```python
-result = randomize_word(
-    session_id=session_id,
-    word_list_name="item_names",
-    use_predefined=True
-)
-# Returns: random word from any category in item_names
-```
-
-### Built-in Word Lists
-
-Each sample adventure includes predefined word lists:
-
-**Fantasy Dungeon (fantasy_dungeon):**
-
-- `character_names`: dwarf, elf, human, goblin
-- `location_names`: chamber, passage, danger_zone
-- `item_names`: weapon, armor, artifact
-
-**Station Anomaly (scifi_station):**
-
-- `character_names`: human_crew, alien, android
-- `location_names`: sector, facility, danger_zone
-- `item_names`: weapon, tech, artifact
-
-**The Jade Dragon Case (noir_detective):**
-
-- `character_names`: suspect, detective, underworld
-- `location_names`: crime_scene, establishment, safe_place
-- `item_names`: evidence, weapon, clue
-
-### Creating Custom Word Lists
-
-When creating custom adventures, include word lists in your JSON:
-
-```json
-{
-  "id": "my_adventure",
-  "word_lists": [
-    {
-      "name": "npc_names",
-      "description": "Names for NPCs",
-      "categories": {
-        "friendly": ["Alice", "Bob", "Charlie"],
-        "hostile": ["Villain", "Tyrant", "Lord"]
-      }
-    }
-  ]
-}
-```
-
-## Template Substitution in Initial Content
-
-Adventures can use **template syntax** in their `initial_location` and `initial_story` to automatically substitute random words from word lists when a session starts. This creates unique opening narratives without requiring the AI to generate content.
-
-### Template Syntax
-
-Use curly braces with word list references:
-
-- `{word_list_name}` - Pick a random word from any category
-- `{word_list_name.category_name}` - Pick from a specific category
-
-### How It Works
-
-When `start_adventure()` is called with `randomize_initial=True` (default):
-
-1. All placeholders in initial_location are replaced with random words
-2. All placeholders in initial_story are replaced with random words
-3. The processed location is stored in the session state
-4. The processed story is returned to the caller
-
-### Examples
-
-**Fantasy Dungeon:**
-
-```
-initial_location: "{location_names.chamber}"
-→ Could become: "Hall of Shadows" or "Vault of Whispers"
-
-initial_story: "...A trap set by {character_names}..."
-→ Could become: "...A trap set by Legolas..." or "...A trap set by Boromir..."
-```
-
-**Station Anomaly:**
-
-```
-initial_location: "{location_names.facility}"
-→ Could become: "Medical Bay" or "Science Lab"
-
-initial_story: "...{character_names.alien} in {location_names.danger_zone}..."
-→ Could become: "...Zyx'theta in Reactor Core..." or "...Krell-7 in Radiation Sector..."
-```
-
-### Controlling Randomization
-
-**Enable template substitution (default):**
-
-```
-start_adventure(adventure_id="fantasy_dungeon", randomize_initial=True)
-```
-
-**Disable template substitution (return raw templates):**
-
-```
-start_adventure(adventure_id="fantasy_dungeon", randomize_initial=False)
-# Returns: location="{location_names.chamber}", story with {placeholders}
-```
-
-When disabled, the raw template strings are returned, allowing the AI to handle substitution or generate custom content instead.
-
-### Creating Adventures with Templates
-
-When defining initial_location and initial_story in your JSON:
-
-```json
-{
-  "id": "my_adventure",
-  "word_lists": [
-    {
-      "name": "npcs",
-      "description": "NPC names",
-      "categories": {
-        "ally": ["Alice", "Bob"],
-        "enemy": ["Villain", "Tyrant"]
-      }
-    }
-  ],
-  "initial_location": "{npcs.ally}'s Tavern",
-  "initial_story": "You arrive at the tavern to find {npcs.ally} nervously waiting. Word has it {npcs.enemy} is hunting them. The stakes have never been higher."
-}
-```
-
-This adventure will generate a unique opening every time a session starts, with actual NPC names substituted into the narrative.
-
-## Dynamic Entity Creation
-
-The AI can dynamically create new NPCs, locations, and items during gameplay to enrich the story. These entities are persisted to the database and scoped to individual game sessions.
-
-### Characters (NPCs)
-
-Create characters with stats and properties:
-
-```python
-create_character(
-    session_id="abc123",
-    name="Mysterious Merchant",
-    description="An old merchant with knowing eyes",
-    location="Town Square",
-    stats={"Wisdom": 15, "Charisma": 12},  # Optional
-    properties={"friendly": True, "quest_giver": True}  # Optional
+# Old way (3 separate tool calls):
+state = get_state(session_id)
+history = get_history(session_id, limit=10)
+memories = get_character_memories(session_id, "Merchant")
+
+# New way (1 tool call):
+info = get_session_info(
+    session_id,
+    include_state=True,
+    include_history=True,
+    include_character_memories="Merchant",
+    history_limit=10
 )
 ```
 
-### Locations
+#### `manage_inventory()` - All Inventory Operations
 
-Create new areas with connections to other places:
+Replaces 2 tools and adds 4 new operations: `add_inventory()`, `remove_inventory()` + `update`, `check`, `list`, `use`
 
-```python
-create_location(
-    session_id="abc123",
-    name="Hidden Cellar",
-    description="A dusty cellar filled with ancient wine bottles",
-    connected_to=["Tavern", "Secret Tunnel"],  # Optional
-    properties={"locked": False, "discovered": True}  # Optional
-)
-```
+**Actions:** `add`, `remove`, `update`, `check`, `list`, `use`
 
-### Items
+#### `manage_summary()` - Session Summary Management
 
-Create items that can be placed in the world or inventory:
+Replaces 2 tools and adds 2 new operations: `summarize_progress()`, `get_adventure_summary()` + `get_latest`, `delete`
 
-```python
-create_item(
-    session_id="abc123",
-    name="Ancient Key",
-    description="A rusty iron key with strange runes",
-    location="Hidden Cellar",  # Or None for player inventory
-    properties={"usable": True, "quest_item": True}  # Optional
-)
-```
+**Actions:** `create`, `get`, `get_latest`, `delete`
 
-### Use Cases
+### Migration Guide
 
-- AI encounters a situation requiring a new NPC and creates them on the spot
-- Story requires a new location not in the original adventure template
-- Player finds a unique item the AI invents based on narrative needs
-- Dynamic quest creation with custom characters and objectives
-
-All created entities are:
-
-- Persisted to the database
-- Accessible via list/get/update tools
-- Session-specific (won't affect other games)
-- Available through resource URIs for quick reference
-
-## Database Schema
-
-The server uses SQLite with the following tables:
-
-- **adventures**: Adventure templates
-- **game_sessions**: Active game sessions
-- **player_state**: Current player status (including character name in custom_data)
-- **action_history**: Log of all player actions and outcomes
-- **characters**: Dynamically created NPCs (session-scoped)
-- **locations**: Dynamically created places (session-scoped)
-- **items**: Dynamically created objects (session-scoped)
-- **session_summaries**: AI-generated summaries of play sessions with key events and character changes
-
-Database file: `adventure_handler.db` (in current directory)
-
-## Configuration
-
-Edit `src/adventure_handler/database.py` to change the database path:
-
-```python
-db = AdventureDB(db_path="/custom/path/adventure_handler.db")
-```
-
-## Development
-
-### Using UV
-
-```bash
-# Install with dev dependencies
-uv pip install -e ".[dev]"
-
-# Run tests
-uv run pytest
-
-# Format code
-uv run ruff check --fix
-
-# Run server in development mode
-uv run python -m adventure_handler
-```
-
-### Using pip
-
-```bash
-# Install with dev dependencies
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Format code
-ruff check --fix
-```
-
-## Architecture Notes
-
-- **Context Efficiency**: All MCP descriptions are concise to minimize token usage
-- **Stat Flexibility**: Each adventure defines its own stats, allowing varied gameplay styles
-- **Improv Support**: Players can attempt anything; stat checks determine success
-- **Batch Operations**: Tools are designed to support multi-step operations via LLM orchestration
-- **Persistent State**: All game data persists in SQLite for long-running campaigns
+See the [CLAUDE.md](CLAUDE.md#consolidated-tools-context-optimization) file for detailed migration examples and code patterns.
 
 ## License
 

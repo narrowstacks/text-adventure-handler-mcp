@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from adventure_handler.database import AdventureDB
 from adventure_handler.models import Character, Memory, Adventure
-from adventure_handler.server import record_event, get_character_memories, add_character_memory, db as server_db
+from adventure_handler.server import record_event, get_session_info, add_character_memory, db as server_db
 from unittest.mock import patch
 
 @pytest_asyncio.fixture
@@ -72,15 +72,15 @@ async def test_record_event_tool(test_db):
         assert result["witness_count"] == 1
         assert "Witness" in result["witnesses"]
         
-        # Verify memory
-        c1_memories = await get_character_memories.fn(session_id="sess1", character_name="Witness")
-        assert len(c1_memories["memories"]) == 1
-        assert c1_memories["memories"][0]["description"] == "Explosion"
-        assert c1_memories["memories"][0]["importance"] == 5
-        
+        # Verify memory using get_session_info with include_character_memories
+        c1_info = await get_session_info.fn(session_id="sess1", include_state=False, include_character_memories="Witness")
+        assert len(c1_info["character_memories"]["memories"]) == 1
+        assert c1_info["character_memories"]["memories"][0]["description"] == "Explosion"
+        assert c1_info["character_memories"]["memories"][0]["importance"] == 5
+
         # Verify absent char has no memory
-        c2_memories = await get_character_memories.fn(session_id="sess1", character_name="Absent")
-        assert len(c2_memories["memories"]) == 0
+        c2_info = await get_session_info.fn(session_id="sess1", include_state=False, include_character_memories="Absent")
+        assert len(c2_info["character_memories"]["memories"]) == 0
 
 @pytest.mark.asyncio
 async def test_memory_decay(test_db):

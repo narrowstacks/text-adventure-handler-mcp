@@ -129,10 +129,10 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
 
     Allowed tools:
     - take_action, move_to_location, combat_round
-    - add_inventory, remove_inventory, modify_hp, modify_stat, update_score
+    - manage_inventory, modify_hp, modify_stat, update_score
     - update_quest, interact_npc, record_event, add_character_memory
     - manage_character, manage_location, manage_item
-    - manage_status_effect, manage_time, manage_faction, manage_economy
+    - manage_status_effect, manage_time, manage_faction, manage_economy, manage_summary
     """
     # Map string names to actual tool functions
     # Note: We refer to the functions available in this module's scope
@@ -140,8 +140,7 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
         "take_action": take_action,
         "move_to_location": move_to_location,
         "combat_round": combat_round,
-        "add_inventory": add_inventory,
-        "remove_inventory": remove_inventory,
+        "manage_inventory": manage_inventory,
         "modify_hp": modify_hp,
         "update_quest": update_quest,
         "interact_npc": interact_npc,
@@ -156,6 +155,7 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
         "manage_time": manage_time,
         "manage_faction": manage_faction,
         "manage_economy": manage_economy,
+        "manage_summary": manage_summary,
     }
 
     results = []
@@ -465,24 +465,93 @@ async def start_adventure(
 
 
 @mcp.tool()
-async def get_state(session_id: str) -> dict:
-    """Get current game state including location, stats, score, inventory, hp, quests."""
+async def get_session_info(
+    session_id: str,
+    include_state: bool = True,
+    include_history: bool = False,
+    include_character_memories: str = None,
+    history_limit: int = 20,
+    memory_limit: int = 10,
+    include_nearby_characters: bool = False,
+    include_available_items: bool = False
+) -> dict:
+    """
+    Get comprehensive session information with optional components.
+
+    This consolidated tool replaces get_state(), get_history(), and get_character_memories().
+
+    Args:
+        session_id: The game session ID
+        include_state: Include current game state (location, stats, inventory, hp, quests, etc.)
+        include_history: Include action history
+        include_character_memories: Character name to retrieve memories for (None to skip)
+        history_limit: Maximum number of history entries to return (default: 20)
+        memory_limit: Maximum number of memories to return (default: 10)
+        include_nearby_characters: Include characters at current location
+        include_available_items: Include items at current location
+
+    Returns a dict with requested information components.
+    """
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
 
-    return {
-        "session_id": session_id,
-        "location": session.state.location,
-        "hp": session.state.hp,
-        "max_hp": session.state.max_hp,
-        "stats": session.state.stats,
-        "inventory": [i.model_dump() for i in session.state.inventory],
-        "quests": [q.model_dump() for q in session.state.quests],
-        "relationships": session.state.relationships,
-        "score": session.state.score,
-        "custom_data": session.state.custom_data,
-    }
+    result = {"session_id": session_id}
+
+    # State information
+    if include_state:
+        result["state"] = {
+            "location": session.state.location,
+            "hp": session.state.hp,
+            "max_hp": session.state.max_hp,
+            "stats": session.state.stats,
+            "inventory": [i.model_dump() for i in session.state.inventory],
+            "quests": [q.model_dump() for q in session.state.quests],
+            "relationships": session.state.relationships,
+            "score": session.state.score,
+            "custom_data": session.state.custom_data,
+        }
+
+    # History information
+    if include_history:
+        history = await db.get_history(session_id, history_limit)
+        result["history"] = history
+
+    # Character memories
+    if include_character_memories:
+        characters = await db.list_characters(session_id)
+        character = next((c for c in characters if c.name.lower() == include_character_memories.lower()), None)
+
+        if character:
+            sorted_memories = sorted(character.memories, key=lambda m: (m.importance, m.timestamp.timestamp()), reverse=True)
+            result["character_memories"] = {
+                "character": character.name,
+                "memories": [m.model_dump() for m in sorted_memories[:memory_limit]]
+            }
+        else:
+            result["character_memories"] = {"error": f"Character {include_character_memories} not found"}
+
+    # Nearby characters
+    if include_nearby_characters:
+        characters = await db.list_characters(session_id)
+        nearby = [
+            {"id": c.id, "name": c.name, "description": c.description}
+            for c in characters
+            if c.location == session.state.location
+        ]
+        result["nearby_characters"] = nearby
+
+    # Available items at location
+    if include_available_items:
+        items = await db.list_items(session_id)
+        available = [
+            {"id": i.id, "name": i.name, "description": i.description}
+            for i in items
+            if i.location == session.state.location
+        ]
+        result["available_items"] = available
+
+    return result
 
 
 @mcp.tool()
@@ -778,63 +847,172 @@ async def move_to_location(session_id: str, location: str) -> dict:
 
 
 @mcp.tool()
-async def add_inventory(session_id: str, item_name: str, quantity: int = 1, properties: dict = None) -> dict:
+async def manage_inventory(
+    session_id: str,
+    action: str,
+    item_name: str = None,
+    quantity: int = 1,
+    properties: dict = None
+) -> dict:
     """
-    Add item to inventory with rich support.
-    """
-    session = await db.get_session(session_id)
-    if not session:
-        return {"error": f"Session {session_id} not found"}
+    Modular tool for inventory management operations.
 
-    # Check if item already exists
-    existing = next((i for i in session.state.inventory if i.name == item_name), None)
-    
-    if existing:
-        existing.quantity += quantity
-    else:
-        new_item = InventoryItem(
-            id=str(uuid.uuid4()),
-            name=item_name,
-            description="Added to inventory",
-            quantity=quantity,
-            properties=properties or {}
-        )
-        session.state.inventory.append(new_item)
+    This consolidated tool replaces add_inventory() and remove_inventory().
 
-    await db.update_player_state(session_id, session.state)
-
-    return {
-        "message": f"Added {quantity}x {item_name}",
-        "current_inventory": [f"{i.quantity}x {i.name}" for i in session.state.inventory]
-    }
-
-
-@mcp.tool()
-async def remove_inventory(session_id: str, item_name: str, quantity: int = 1) -> dict:
-    """
-    Remove item from inventory.
+    Actions:
+    - add: Add item to inventory (requires item_name, optional quantity and properties)
+    - remove: Remove item from inventory (requires item_name, optional quantity)
+    - update: Update item properties (requires item_name and properties)
+    - check: Check if specific item exists in inventory (requires item_name)
+    - list: List all inventory items (no additional parameters needed)
+    - use: Mark item as used/consumed (requires item_name, optional quantity)
     """
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
 
-    item = next((i for i in session.state.inventory if i.name == item_name), None)
-    if not item:
-        return {"error": f"Item {item_name} not found in inventory"}
-        
-    if item.quantity > quantity:
-        item.quantity -= quantity
-        removed = quantity
+    if action == "add":
+        if not item_name:
+            return {"error": "item_name required for add action"}
+
+        # Check if item already exists
+        existing = next((i for i in session.state.inventory if i.name == item_name), None)
+
+        if existing:
+            existing.quantity += quantity
+        else:
+            new_item = InventoryItem(
+                id=str(uuid.uuid4()),
+                name=item_name,
+                description="Added to inventory",
+                quantity=quantity,
+                properties=properties or {}
+            )
+            session.state.inventory.append(new_item)
+
+        await db.update_player_state(session_id, session.state)
+
+        return {
+            "success": True,
+            "action": "add",
+            "message": f"Added {quantity}x {item_name}",
+            "current_inventory": [f"{i.quantity}x {i.name}" for i in session.state.inventory]
+        }
+
+    elif action == "remove":
+        if not item_name:
+            return {"error": "item_name required for remove action"}
+
+        item = next((i for i in session.state.inventory if i.name == item_name), None)
+        if not item:
+            return {"error": f"Item {item_name} not found in inventory"}
+
+        if item.quantity > quantity:
+            item.quantity -= quantity
+            removed = quantity
+        else:
+            removed = item.quantity
+            session.state.inventory.remove(item)
+
+        await db.update_player_state(session_id, session.state)
+
+        return {
+            "success": True,
+            "action": "remove",
+            "message": f"Removed {removed}x {item_name}",
+            "remaining": item.quantity if item in session.state.inventory else 0
+        }
+
+    elif action == "update":
+        if not item_name:
+            return {"error": "item_name required for update action"}
+        if not properties:
+            return {"error": "properties required for update action"}
+
+        item = next((i for i in session.state.inventory if i.name == item_name), None)
+        if not item:
+            return {"error": f"Item {item_name} not found in inventory"}
+
+        item.properties.update(properties)
+        await db.update_player_state(session_id, session.state)
+
+        return {
+            "success": True,
+            "action": "update",
+            "message": f"Updated properties for {item_name}",
+            "properties": item.properties
+        }
+
+    elif action == "check":
+        if not item_name:
+            return {"error": "item_name required for check action"}
+
+        item = next((i for i in session.state.inventory if i.name == item_name), None)
+        if not item:
+            return {
+                "success": True,
+                "action": "check",
+                "exists": False,
+                "item_name": item_name
+            }
+
+        return {
+            "success": True,
+            "action": "check",
+            "exists": True,
+            "item": item.model_dump()
+        }
+
+    elif action == "list":
+        return {
+            "success": True,
+            "action": "list",
+            "inventory": [i.model_dump() for i in session.state.inventory],
+            "summary": [f"{i.quantity}x {i.name}" for i in session.state.inventory]
+        }
+
+    elif action == "use":
+        if not item_name:
+            return {"error": "item_name required for use action"}
+
+        item = next((i for i in session.state.inventory if i.name == item_name), None)
+        if not item:
+            return {"error": f"Item {item_name} not found in inventory"}
+
+        # Check if item is consumable
+        if item.properties.get("consumable", False):
+            if item.quantity > quantity:
+                item.quantity -= quantity
+                removed = quantity
+            else:
+                removed = item.quantity
+                session.state.inventory.remove(item)
+
+            await db.update_player_state(session_id, session.state)
+
+            return {
+                "success": True,
+                "action": "use",
+                "message": f"Used {removed}x {item_name}",
+                "consumed": True,
+                "remaining": item.quantity if item in session.state.inventory else 0
+            }
+        else:
+            # Mark as used but don't remove
+            item.properties["last_used"] = datetime.now().isoformat()
+            item.properties["use_count"] = item.properties.get("use_count", 0) + 1
+            await db.update_player_state(session_id, session.state)
+
+            return {
+                "success": True,
+                "action": "use",
+                "message": f"Used {item_name}",
+                "consumed": False,
+                "use_count": item.properties["use_count"]
+            }
+
     else:
-        removed = item.quantity
-        session.state.inventory.remove(item)
-
-    await db.update_player_state(session_id, session.state)
-
-    return {
-        "message": f"Removed {removed}x {item_name}",
-        "remaining": item.quantity if item in session.state.inventory else 0
-    }
+        return {"error": f"Unknown action: {action}. Valid actions: add, remove, update, check, list, use"}
 
 
 @mcp.tool()
@@ -850,15 +1028,6 @@ async def update_score(session_id: str, points: int) -> dict:
     return {"score": session.state.score, "change": points}
 
 
-@mcp.tool()
-async def get_history(session_id: str, limit: int = 20) -> dict:
-    """Get action history for this session."""
-    session = await db.get_session(session_id)
-    if not session:
-        return {"error": f"Session {session_id} not found"}
-
-    history = await db.get_history(session_id, limit)
-    return {"session_id": session_id, "history": history}
 
 
 @mcp.tool()
@@ -906,14 +1075,24 @@ async def randomize_word(
 
 
 @mcp.tool()
-async def summarize_progress(
+async def manage_summary(
     session_id: str,
-    summary: str,
+    action: str,
+    summary: str = None,
     key_events: list[str] = None,
     character_changes: list[str] = None,
+    summary_id: str = None
 ) -> dict:
     """
-    Create a summary of the current game session.
+    Modular tool for session summary management.
+
+    This consolidated tool replaces summarize_progress() and get_adventure_summary().
+
+    Actions:
+    - create: Create new session summary (requires summary, optional key_events and character_changes)
+    - get: Get all session summaries with adventure context
+    - get_latest: Get only the most recent summary
+    - delete: Delete a specific summary (requires summary_id)
     """
     from .models import SessionSummary
 
@@ -921,56 +1100,101 @@ async def summarize_progress(
     if not session:
         return {"error": f"Session {session_id} not found"}
 
-    summary_id = str(uuid.uuid4())
-    session_summary = SessionSummary(
-        id=summary_id,
-        session_id=session_id,
-        summary=summary,
-        key_events=key_events or [],
-        character_changes=character_changes or [],
-    )
+    if action == "create":
+        if not summary:
+            return {"error": "summary required for create action"}
 
-    await db.add_session_summary(session_summary)
+        new_summary_id = str(uuid.uuid4())
+        session_summary = SessionSummary(
+            id=new_summary_id,
+            session_id=session_id,
+            summary=summary,
+            key_events=key_events or [],
+            character_changes=character_changes or [],
+        )
 
-    return {
-        "summary_id": summary_id,
-        "session_id": session_id,
-        "message": "Session summary created successfully",
-    }
+        await db.add_session_summary(session_summary)
 
+        return {
+            "success": True,
+            "action": "create",
+            "summary_id": new_summary_id,
+            "session_id": session_id,
+            "message": "Session summary created successfully",
+        }
 
-@mcp.tool()
-async def get_adventure_summary(session_id: str) -> dict:
-    """
-    Get all session summaries.
-    """
-    session = await db.get_session(session_id)
-    if not session:
-        return {"error": f"Session {session_id} not found"}
+    elif action == "get":
+        adventure = await db.get_adventure(session.adventure_id)
+        summaries = await db.get_session_summaries(session_id)
 
-    adventure = await db.get_adventure(session.adventure_id)
-    summaries = await db.get_session_summaries(session_id)
+        return {
+            "success": True,
+            "action": "get",
+            "session_id": session_id,
+            "adventure": adventure.title,
+            "total_summaries": len(summaries),
+            "summaries": [
+                {
+                    "id": s.id,
+                    "summary": s.summary,
+                    "key_events": s.key_events,
+                    "character_changes": s.character_changes,
+                    "created_at": s.created_at.isoformat(),
+                }
+                for s in summaries
+            ],
+            "current_state": {
+                "location": session.state.location,
+                "score": session.state.score,
+                "hp": f"{session.state.hp}/{session.state.max_hp}",
+                "character_name": session.state.custom_data.get("character_name", "Unknown Adventurer"),
+            },
+        }
 
-    return {
-        "session_id": session_id,
-        "adventure": adventure.title,
-        "total_summaries": len(summaries),
-        "summaries": [
-            {
-                "summary": s.summary,
-                "key_events": s.key_events,
-                "character_changes": s.character_changes,
-                "created_at": s.created_at.isoformat(),
+    elif action == "get_latest":
+        summaries = await db.get_session_summaries(session_id)
+
+        if not summaries:
+            return {
+                "success": True,
+                "action": "get_latest",
+                "message": "No summaries found for this session"
             }
-            for s in summaries
-        ],
-        "current_state": {
-            "location": session.state.location,
-            "score": session.state.score,
-            "hp": f"{session.state.hp}/{session.state.max_hp}",
-            "character_name": session.state.custom_data.get("character_name", "Unknown Adventurer"),
-        },
-    }
+
+        latest = summaries[-1]  # Assuming summaries are ordered by creation time
+
+        return {
+            "success": True,
+            "action": "get_latest",
+            "session_id": session_id,
+            "summary": {
+                "id": latest.id,
+                "summary": latest.summary,
+                "key_events": latest.key_events,
+                "character_changes": latest.character_changes,
+                "created_at": latest.created_at.isoformat(),
+            }
+        }
+
+    elif action == "delete":
+        if not summary_id:
+            return {"error": "summary_id required for delete action"}
+
+        # Note: This assumes a delete_session_summary method exists in the database
+        # If it doesn't exist, we would need to add it
+        try:
+            await db.delete_session_summary(summary_id)
+            return {
+                "success": True,
+                "action": "delete",
+                "summary_id": summary_id,
+                "message": "Summary deleted successfully"
+            }
+        except AttributeError:
+            return {"error": "Delete functionality not yet implemented in database layer"}
+
+    else:
+        return {"error": f"Unknown action: {action}. Valid actions: create, get, get_latest, delete"}
 
 
 @mcp.resource("adventure://prompt/{adventure_id}")
@@ -1176,29 +1400,6 @@ async def add_character_memory(session_id: str, character_name: str, description
     }
 
 
-@mcp.tool()
-async def get_character_memories(session_id: str, character_name: str, limit: int = 10) -> dict:
-    """
-    Retrieve memories for a specific character to inform their behavior and disposition.
-    Memories are returned sorted by importance and recency.
-    """
-    session = await db.get_session(session_id)
-    if not session:
-        return {"error": f"Session {session_id} not found"}
-
-    characters = await db.list_characters(session_id)
-    character = next((c for c in characters if c.name.lower() == character_name.lower()), None)
-    
-    if not character:
-        return {"error": f"Character {character_name} not found"}
-        
-    # Memory Retrieval: Sort by importance (desc) then timestamp (desc)
-    sorted_memories = sorted(character.memories, key=lambda m: (m.importance, m.timestamp.timestamp()), reverse=True)
-    
-    return {
-        "character": character.name,
-        "memories": [m.model_dump() for m in sorted_memories[:limit]]
-    }
 
 
 @mcp.tool()

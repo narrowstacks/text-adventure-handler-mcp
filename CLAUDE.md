@@ -94,8 +94,11 @@ pip install -e .
 
 **Session Summaries**:
 
-- `summarize_progress()`: Call when user ends a play session. AI provides a concise summary (2-4 sentences), list of key events, and character changes.
-- `get_adventure_summary()`: Retrieves all previous summaries in chronological order, allowing AI to recap "the story so far" when continuing an adventure.
+Use `manage_summary()` with action-based API:
+- `action="create"`: Create a new session summary when user ends a play session (requires summary, optional key_events and character_changes)
+- `action="get"`: Retrieve all previous summaries in chronological order, allowing AI to recap "the story so far" when continuing an adventure
+- `action="get_latest"`: Get only the most recent summary
+- `action="delete"`: Delete a specific summary (requires summary_id)
 
 **Batch Operations**: The `python_eval()` tool allows executing arbitrary Python code with access to session state, database, and helper functions. This is for multi-step operations that would otherwise require many tool calls.
 
@@ -174,3 +177,80 @@ The server will automatically load it on startup via `load_sample_adventures()`.
 - **Error Handling**: Tools return `{"error": "message"}` dictionaries rather than raising exceptions to provide graceful failures to AI agents.
 - **JSON Serialization**: SQLite stores complex data as JSON strings. Always use `json.dumps()` when storing and `json.loads()` when retrieving.
 - **Word List Matching**: The `get_random_word()` function returns `None` if a word list or category doesn't exist, allowing template processing to preserve the original placeholder.
+
+## Consolidated Tools (Context Optimization)
+
+To reduce context consumption, several related tools have been consolidated into unified APIs with action-based parameters:
+
+### `get_session_info()` - Information Gathering
+
+Consolidates `get_state()`, `get_history()`, and `get_character_memories()` into a single tool with optional components:
+
+```python
+get_session_info(
+    session_id: str,
+    include_state: bool = True,           # Get location, stats, inventory, hp, quests, etc.
+    include_history: bool = False,        # Get action history
+    include_character_memories: str = None,  # Character name to retrieve memories for
+    history_limit: int = 20,              # Max history entries
+    memory_limit: int = 10,               # Max memories per character
+    include_nearby_characters: bool = False,  # Characters at current location
+    include_available_items: bool = False     # Items at current location
+)
+```
+
+**Usage:** Call once with multiple flags instead of making 3 separate tool calls.
+
+### `manage_inventory()` - Inventory Operations
+
+Consolidates `add_inventory()` and `remove_inventory()` with additional functionality:
+
+```python
+manage_inventory(
+    session_id: str,
+    action: str,                  # "add", "remove", "update", "check", "list", "use"
+    item_name: str = None,        # Required for most actions
+    quantity: int = 1,
+    properties: dict = None
+)
+```
+
+**Actions:**
+- `"add"`: Add item to inventory (replaces `add_inventory()`)
+- `"remove"`: Remove item from inventory (replaces `remove_inventory()`)
+- `"update"`: Update item properties (new functionality)
+- `"check"`: Check if specific item exists (new functionality)
+- `"list"`: List all inventory items (new functionality)
+- `"use"`: Mark item as used/consumed (new functionality)
+
+### `manage_summary()` - Session Summary Management
+
+Consolidates `summarize_progress()` and `get_adventure_summary()`:
+
+```python
+manage_summary(
+    session_id: str,
+    action: str,                  # "create", "get", "get_latest", "delete"
+    summary: str = None,
+    key_events: list[str] = None,
+    character_changes: list[str] = None,
+    summary_id: str = None
+)
+```
+
+**Actions:**
+- `"create"`: Create new session summary (replaces `summarize_progress()`)
+- `"get"`: Get all session summaries (replaces `get_adventure_summary()`)
+- `"get_latest"`: Get only the most recent summary (new functionality)
+- `"delete"`: Delete a specific summary (new functionality)
+
+### Migration Notes
+
+When updating existing code or adventure prompts:
+- Replace `get_state()` → `get_session_info(include_state=True)`
+- Replace `get_history()` → `get_session_info(include_history=True)`
+- Replace `get_character_memories(name)` → `get_session_info(include_character_memories=name)`
+- Replace `add_inventory()` → `manage_inventory(action="add")`
+- Replace `remove_inventory()` → `manage_inventory(action="remove")`
+- Replace `summarize_progress()` → `manage_summary(action="create")`
+- Replace `get_adventure_summary()` → `manage_summary(action="get")`
