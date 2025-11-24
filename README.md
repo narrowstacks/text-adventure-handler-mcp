@@ -40,6 +40,7 @@ The project includes an optional web-based dashboard that provides a visual inte
 ### Running the Web UI
 
 1.  **Clone the repository**:
+
     ```bash
     git clone https://github.com/narrowstacks/text-adventure-handler-mcp.git
     cd text-adventure-handler-mcp
@@ -47,6 +48,7 @@ The project includes an optional web-based dashboard that provides a visual inte
 
 2.  **Start using the helper CLI**:
     You can use the included CLI to start the Web UI and the server together (requires `uv`):
+
     ```bash
     uv run python -m adventure_handler --web-ui --open-browser
     ```
@@ -81,7 +83,7 @@ npm install
 npm run dev
 
 # Frontend (port 5173)
-cd web/frontend  
+cd web/frontend
 npm install
 npm run dev
 ```
@@ -156,12 +158,7 @@ If you have cloned the repository and want to use your local version:
   "mcpServers": {
     "text-adventure-local": {
       "command": "uv",
-      "args": [
-        "run",
-        "python",
-        "-m",
-        "adventure_handler"
-      ],
+      "args": ["run", "python", "-m", "adventure_handler"],
       "cwd": "/absolute/path/to/text-adventure-handler-mcp"
     }
   }

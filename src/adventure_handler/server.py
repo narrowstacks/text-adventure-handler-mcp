@@ -565,11 +565,15 @@ async def take_action(session_id: str, action: str, stat_name: str = None, diffi
         difficulty_class=difficulty_class,
         timestamp=datetime.now()
     )
+    score_delta = 10 if success else 0
+    session.state.score += score_delta
+    await db.update_player_state(session_id, session.state)
+
     await db.add_action(
         session_id, 
         action_record, 
         "Success" if success else "Failure", 
-        0,
+        score_delta,
         dice_roll=roll_result.model_dump() if roll_result else None
     )
 
@@ -578,7 +582,8 @@ async def take_action(session_id: str, action: str, stat_name: str = None, diffi
         "action": action,
         "success": success,
         "dice_roll": roll_result.model_dump() if roll_result else None,
-        "score_change": 10 if success else 0,
+        "score_change": score_delta,
+        "new_score": session.state.score,
         "prompt": f"Generate a story outcome for this {'successful' if success else 'failed'} action: {action}",
     }
 
@@ -643,7 +648,7 @@ async def combat_round(
         "damage_dealt": damage,
         "message": message,
         "current_hp": session.state.hp,
-        "prompt": f"Describe the combat round. Player {message}. Then describe {target_name}'s counter-attack and specify damage to player using modify_hp tool if needed."
+        "prompt": f"Describe the combat round. Player {message}. Then describe {target_name}'s counter-attack and specify damage to player using modify_state(action=\"hp\", value=-damage) if needed."
     }
 
 
@@ -1189,18 +1194,13 @@ async def manage_summary(
         if not summary_id:
             return {"error": "summary_id required for delete action"}
 
-        # Note: This assumes a delete_session_summary method exists in the database
-        # If it doesn't exist, we would need to add it
-        try:
-            await db.delete_session_summary(summary_id)
-            return {
-                "success": True,
-                "action": "delete",
-                "summary_id": summary_id,
-                "message": "Summary deleted successfully"
-            }
-        except AttributeError:
-            return {"error": "Delete functionality not yet implemented in database layer"}
+        await db.delete_session_summary(summary_id)
+        return {
+            "success": True,
+            "action": "delete",
+            "summary_id": summary_id,
+            "message": "Summary deleted successfully"
+        }
 
     else:
         return {"error": f"Unknown action: {action}. Valid actions: create, get, get_latest, delete"}
@@ -1520,6 +1520,9 @@ async def manage_location(
     if action == "create":
         if not location_data:
             return {"error": "location_data required for create action"}
+        missing = [f for f in ["name", "description"] if f not in location_data or not location_data[f]]
+        if missing:
+            return {"error": f"Missing required fields in location_data: {', '.join(missing)}"}
         loc_id = location_data.get("id", f"loc_{uuid.uuid4().hex[:8]}")
         location = Location(
             id=loc_id,
@@ -1595,6 +1598,9 @@ async def manage_item(
     if action == "create":
         if not item_data:
             return {"error": "item_data required for create action"}
+        missing = [f for f in ["name", "description"] if f not in item_data or not item_data[f]]
+        if missing:
+            return {"error": f"Missing required fields in item_data: {', '.join(missing)}"}
         itm_id = item_data.get("id", f"item_{uuid.uuid4().hex[:8]}")
         item = Item(
             id=itm_id,
@@ -1667,9 +1673,16 @@ async def manage_status_effect(
     if not session:
         return {"error": f"Session {session_id} not found"}
 
+    adventure = await db.get_adventure(session.adventure_id)
+    if not adventure or not adventure.features.status_effects:
+        return {"error": "Status effects feature is disabled for this adventure"}
+
     if action == "apply":
         if not effect_data:
             return {"error": "effect_data required for apply action"}
+        missing = [f for f in ["name", "description", "duration"] if f not in effect_data or effect_data[f] in [None, ""]]
+        if missing:
+            return {"error": f"Missing required fields in effect_data: {', '.join(missing)}"}
         eff_id = effect_data.get("id", f"effect_{uuid.uuid4().hex[:8]}")
         effect = StatusEffect(
             id=eff_id,
@@ -1732,6 +1745,10 @@ async def manage_time(
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
+
+    adventure = await db.get_adventure(session.adventure_id)
+    if not adventure or not adventure.features.time_tracking:
+        return {"error": "Time tracking is disabled for this adventure"}
 
     state = session.state
 
@@ -1796,6 +1813,10 @@ async def manage_faction(
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
+
+    adventure = await db.get_adventure(session.adventure_id)
+    if not adventure or not adventure.features.factions:
+        return {"error": "Factions feature is disabled for this adventure"}
 
     if action == "create":
         if not faction_data:
@@ -1889,6 +1910,10 @@ async def manage_economy(
     if not session:
         return {"error": f"Session {session_id} not found"}
 
+    adventure = await db.get_adventure(session.adventure_id)
+    if not adventure or not adventure.features.currency:
+        return {"error": "Currency/economy is disabled for this adventure"}
+
     state = session.state
 
     if action == "add_currency":
@@ -1932,14 +1957,35 @@ async def manage_economy(
     elif action == "buy_item":
         if not item_id or amount is None:
             return {"error": "item_id and amount (cost) required for buy_item action"}
+        if amount < 0:
+            return {"error": "amount must be positive for buy_item"}
         if state.currency < amount:
             return {"error": f"Cannot afford item. Have: {state.currency}, cost: {amount}"}
         item = await db.get_item(item_id)
         if not item:
             return {"error": f"Item {item_id} not found"}
+        if item.session_id != session_id:
+            return {"error": "Item does not belong to this session"}
+        if item.location is None:
+            return {"error": "Item is not available for purchase"}
+
+        # Move item into player inventory
+        existing = next((i for i in state.inventory if i.id == item_id or i.name == item.name), None)
+        if existing:
+            existing.quantity += 1
+        else:
+            state.inventory.append(
+                InventoryItem(
+                    id=item.id,
+                    name=item.name,
+                    description=item.description,
+                    quantity=1,
+                    properties=item.properties,
+                )
+            )
+
         state.currency -= amount
-        item.location = None  # Move to player inventory
-        await db.update_item(item)
+        await db.delete_item(item_id)  # Remove world item record
         await db.update_player_state(session_id, state)
         return {
             "success": True,
@@ -1952,17 +1998,27 @@ async def manage_economy(
     elif action == "sell_item":
         if not item_id or amount is None:
             return {"error": "item_id and amount (price) required for sell_item action"}
-        item = await db.get_item(item_id)
-        if not item:
-            return {"error": f"Item {item_id} not found"}
+        if amount < 0:
+            return {"error": "amount must be positive for sell_item"}
+
+        # Ensure player owns the item
+        inv_item = next((i for i in state.inventory if i.id == item_id), None)
+        if not inv_item:
+            return {"error": f"Item {item_id} not found in player inventory"}
+
+        sold_qty = 1
+        if inv_item.quantity > 1:
+            inv_item.quantity -= 1
+        else:
+            state.inventory.remove(inv_item)
         state.currency += amount
-        await db.delete_item(item_id)  # Remove from game
         await db.update_player_state(session_id, state)
         return {
             "success": True,
             "action": "sell_item",
-            "item_name": item.name,
+            "item_name": inv_item.name,
             "price": amount,
+            "quantity_sold": sold_qty,
             "new_balance": state.currency
         }
 
@@ -1972,6 +2028,8 @@ async def manage_economy(
         item = await db.get_item(item_id)
         if not item:
             return {"error": f"Item {item_id} not found"}
+        if item.session_id != session_id:
+            return {"error": "Item does not belong to this session"}
         item.location = details.get("to_location")
         await db.update_item(item)
         return {

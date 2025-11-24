@@ -918,6 +918,16 @@ class AdventureDB:
             for row in rows
         ]
 
+    async def delete_session_summary(self, summary_id: str) -> bool:
+        """Delete a session summary by id."""
+        async with self._get_conn() as conn:
+            await conn.execute(
+                "DELETE FROM session_summaries WHERE id = ?",
+                (summary_id,),
+            )
+            await conn.commit()
+        return True
+
     # Status effect management
     async def add_status_effect(self, effect: StatusEffect) -> None:
         """Add a status effect to the session."""

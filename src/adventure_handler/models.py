@@ -33,7 +33,7 @@ class InventoryItem(BaseModel):
     name: str
     description: str
     quantity: int = 1
-    properties: dict[str, Any] = {} # e.g. {"damage": 5, "heal": 10, "equippable": True}
+    properties: dict[str, Any] = Field(default_factory=dict) # e.g. {"damage": 5, "heal": 10, "equippable": True}
 
 
 class QuestStatus(BaseModel):
@@ -43,8 +43,8 @@ class QuestStatus(BaseModel):
     description: str
     status: str = "active" # active, completed, failed
     objectives: list[str]
-    completed_objectives: list[str] = []
-    rewards: dict[str, Any] = {}
+    completed_objectives: list[str] = Field(default_factory=list)
+    rewards: dict[str, Any] = Field(default_factory=dict)
 
 
 class PlayerState(BaseModel):
@@ -55,10 +55,10 @@ class PlayerState(BaseModel):
     score: int = 0
     location: str
     stats: dict[str, int]  # stat_name -> value
-    inventory: list[InventoryItem] = []
-    quests: list[QuestStatus] = []
-    relationships: dict[str, int] = {} # npc_name -> value (-100 to 100)
-    custom_data: dict[str, Any] = {}
+    inventory: list[InventoryItem] = Field(default_factory=list)
+    quests: list[QuestStatus] = Field(default_factory=list)
+    relationships: dict[str, int] = Field(default_factory=dict) # npc_name -> value (-100 to 100)
+    custom_data: dict[str, Any] = Field(default_factory=dict)
     currency: int = 0  # Money/gold/credits
     game_time: int = 0  # Current time in hours (0-23)
     game_day: int = 1  # Current day number
@@ -153,8 +153,8 @@ class Memory(BaseModel):
     timestamp: datetime
     type: str = "observation"  # observation, interaction, rumor
     importance: int = 1  # 1-10, determines retention and influence
-    tags: list[str] = []
-    related_entities: list[str] = []  # IDs of related characters/items
+    tags: list[str] = Field(default_factory=list)
+    related_entities: list[str] = Field(default_factory=list)  # IDs of related characters/items
 
 
 class Character(BaseModel):
@@ -164,9 +164,9 @@ class Character(BaseModel):
     name: str
     description: str
     location: str  # Where this character is currently located
-    stats: dict[str, int] = {}  # Optional stats for interaction
-    properties: dict[str, Any] = {}  # Custom properties (hostile, friendly, quest_giver, etc.)
-    memories: list[Memory] = []
+    stats: dict[str, int] = Field(default_factory=dict)  # Optional stats for interaction
+    properties: dict[str, Any] = Field(default_factory=dict)  # Custom properties (hostile, friendly, quest_giver, etc.)
+    memories: list[Memory] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -176,8 +176,8 @@ class Location(BaseModel):
     session_id: str
     name: str
     description: str
-    connected_to: list[str] = []  # List of location names/IDs that connect to this one
-    properties: dict[str, Any] = {}  # Custom properties (locked, hidden, dangerous, etc.)
+    connected_to: list[str] = Field(default_factory=list)  # List of location names/IDs that connect to this one
+    properties: dict[str, Any] = Field(default_factory=dict)  # Custom properties (locked, hidden, dangerous, etc.)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -188,7 +188,7 @@ class Item(BaseModel):
     name: str
     description: str
     location: Optional[str] = None  # Where the item is located (None if in player inventory)
-    properties: dict[str, Any] = {}  # Custom properties (usable, consumable, key_item, etc.)
+    properties: dict[str, Any] = Field(default_factory=dict)  # Custom properties (usable, consumable, key_item, etc.)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -197,8 +197,8 @@ class SessionSummary(BaseModel):
     id: str
     session_id: str
     summary: str  # AI-generated summary of the session
-    key_events: list[str] = []  # Important story beats
-    character_changes: list[str] = []  # Notable character developments
+    key_events: list[str] = Field(default_factory=list)  # Important story beats
+    character_changes: list[str] = Field(default_factory=list)  # Notable character developments
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -220,8 +220,8 @@ class StatusEffect(BaseModel):
     name: str
     description: str
     duration: int  # -1 for permanent, 0 for expired, >0 for remaining turns/actions
-    stat_modifiers: dict[str, int] = {}  # stat_name -> modifier (can be negative)
-    properties: dict[str, Any] = {}  # Custom properties (stackable, harmful, beneficial, etc.)
+    stat_modifiers: dict[str, int] = Field(default_factory=dict)  # stat_name -> modifier (can be negative)
+    properties: dict[str, Any] = Field(default_factory=dict)  # Custom properties (stackable, harmful, beneficial, etc.)
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -232,5 +232,5 @@ class Faction(BaseModel):
     name: str
     description: str
     reputation: int = 0  # -100 (hostile) to +100 (revered)
-    properties: dict[str, Any] = {}  # Custom properties (main_quest, hidden, etc.)
+    properties: dict[str, Any] = Field(default_factory=dict)  # Custom properties (main_quest, hidden, etc.)
     created_at: datetime = Field(default_factory=datetime.now)
