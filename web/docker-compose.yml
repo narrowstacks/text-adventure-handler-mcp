@@ -1,17 +1,10 @@
 services:
-  backend:
+  app:
     image: ghcr.io/narrowstacks/text-adventure-handler-mcp:latest
     ports:
-      - "3001:3001"
+      - "3000:80"
     environment:
       - DB_PATH=/data/adventure.db
     volumes:
       # Use HOST_DB_PATH if provided, otherwise default to the MCP's standard DB location
       - ${HOST_DB_PATH:-${HOME}/.text-adventure-handler/adventure_handler.db}:/data/adventure.db:ro
-
-  frontend:
-    image: ghcr.io/narrowstacks/text-adventure-handler-mcp:latest
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
