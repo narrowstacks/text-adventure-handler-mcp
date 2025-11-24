@@ -9,7 +9,14 @@
       "Bash(uv run ruff:*)",
       "Bash(uv pip install:*)",
       "Bash(uv run pytest:*)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker-compose:*)",
+      "Bash(bun install)",
+      "Bash(bun add:*)",
+      "Bash(bun run build:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": [

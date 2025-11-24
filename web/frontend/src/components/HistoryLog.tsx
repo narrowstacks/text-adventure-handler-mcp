@@ -1,66 +1,111 @@
-import { Box, Paper, Typography, Chip, Divider } from '@mui/material';
+import { Box, Typography, Paper, Stack } from '@mui/material';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { ActionHistory } from '../types';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
-import CasinoIcon from '@mui/icons-material/Casino';
+import DiceRoll from './DiceRoll';
+import { useReducedMotion, listItemEntrance } from '../utils/animations';
 
 interface HistoryLogProps {
     history: ActionHistory[];
 }
 
 export default function HistoryLog({ history }: HistoryLogProps) {
+    const reducedMotion = useReducedMotion();
+
     return (
-        <Paper sx={{ p: 2, height: '70vh', overflowY: 'auto', bgcolor: 'background.paper' }}>
-            <Typography variant="h6" gutterBottom sx={{ position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1, pb: 1 }}>
-                Adventure Log
-            </Typography>
-            {history.map((entry, index) => (
-                <Box key={index} sx={{ mb: 3 }}>
-                    {/* Player Action */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="subtitle2" color="primary" sx={{ mr: 1, fontWeight: 'bold' }}>
-                            You:
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
-                            {entry.action_text}
-                        </Typography>
-                    </Box>
+        <Box sx={{ maxHeight: '60vh', overflowY: 'auto', pr: 1 }}>
+            <AnimatePresence mode="popLayout">
+                {history.map((entry, index) => {
+                    const isCritical = entry.dice_roll?.roll === 20 || entry.dice_roll?.roll === 1;
+                    const isSuccess = entry.dice_roll?.success;
 
-                    {/* Dice Roll Info if present */}
-                    {entry.dice_roll.roll > 0 && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, ml: 2, opacity: 0.8 }}>
-                            <CasinoIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                            <Typography variant="caption" color="text.secondary">
-                                Rolled {entry.dice_roll.roll} {entry.dice_roll.modifier >= 0 ? '+' : ''}{entry.dice_roll.modifier} = {entry.dice_roll.total}
-                            </Typography>
-                            {entry.dice_roll.success !== undefined && (
-                                <Chip 
-                                    icon={entry.dice_roll.success ? <CheckCircleIcon /> : <CancelIcon />}
-                                    label={entry.dice_roll.success ? "Success" : "Failure"}
-                                    size="small"
-                                    color={entry.dice_roll.success ? "success" : "error"}
-                                    variant="outlined"
-                                    sx={{ ml: 1, height: 20 }}
-                                />
-                            )}
-                        </Box>
-                    )}
+                    return (
+                        <motion.div
+                            key={entry.id || `${entry.timestamp}-${index}`}
+                            variants={listItemEntrance}
+                            initial={reducedMotion ? false : 'hidden'}
+                            animate="visible"
+                            exit="exit"
+                            layout
+                        >
+                            <Paper
+                                variant="outlined"
+                                sx={{
+                                    mb: 1.5,
+                                    p: 1.5,
+                                    background: isCritical
+                                        ? entry.dice_roll?.roll === 20
+                                            ? 'linear-gradient(135deg, rgba(124,231,194,0.12), rgba(124,231,194,0.04))'
+                                            : 'linear-gradient(135deg, rgba(255,107,107,0.12), rgba(255,107,107,0.04))'
+                                        : 'linear-gradient(135deg, rgba(124,231,194,0.04), rgba(255,138,167,0.04))',
+                                    borderLeft: '3px solid',
+                                    borderColor: isSuccess === undefined
+                                        ? 'secondary.main'
+                                        : isSuccess
+                                          ? 'success.main'
+                                          : 'error.main',
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        background: 'linear-gradient(135deg, rgba(124,231,194,0.08), rgba(255,138,167,0.08))'
+                                    }
+                                }}
+                            >
+                                <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ mb: 0.5 }}>
+                                    <Typography variant="subtitle2" color="primary" sx={{ flexShrink: 0 }}>
+                                        You:
+                                    </Typography>
+                                    <Typography variant="body1" sx={{ fontStyle: 'italic' }}>
+                                        {entry.action_text}
+                                    </Typography>
+                                </Stack>
 
-                    {/* Narrator Outcome */}
-                    <Paper elevation={0} sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 2, borderLeft: 4, borderColor: 'secondary.main' }}>
-                        <Typography variant="body1">
-                            {entry.outcome}
-                        </Typography>
-                        {entry.score_change !== 0 && (
-                            <Typography variant="caption" display="block" sx={{ mt: 1, color: entry.score_change > 0 ? 'success.main' : 'error.main' }}>
-                                Score {entry.score_change > 0 ? '+' : ''}{entry.score_change}
-                            </Typography>
-                        )}
-                    </Paper>
-                    
-                    <Divider sx={{ mt: 2, opacity: 0.3 }} />
-                </Box>
-            ))}
-        </Paper>
+                                {entry.dice_roll?.roll && (
+                                    <Box sx={{ my: 1 }}>
+                                        <DiceRoll
+                                            roll={entry.dice_roll.roll}
+                                            total={entry.dice_roll.total ?? entry.dice_roll.roll}
+                                            modifier={entry.dice_roll.modifier}
+                                            dc={entry.dice_roll.dc}
+                                            success={entry.dice_roll.success}
+                                            statUsed={entry.stat_used}
+                                        />
+                                    </Box>
+                                )}
+
+                                {entry.outcome && (
+                                    <Typography variant="body2" sx={{ mb: 0.5, lineHeight: 1.6 }}>
+                                        {entry.outcome}
+                                    </Typography>
+                                )}
+
+                                {entry.score_change !== undefined && entry.score_change !== 0 && (
+                                    <motion.div
+                                        initial={reducedMotion ? {} : { scale: 0.8, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                                        style={{ display: 'inline-block', marginTop: 4 }}
+                                    >
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: entry.score_change > 0 ? '#7ce7c2' : '#ff6b6b',
+                                                fontWeight: 700,
+                                                fontSize: '0.8rem',
+                                                textShadow:
+                                                    entry.score_change > 0
+                                                        ? '0 0 10px rgba(124, 231, 194, 0.5)'
+                                                        : '0 0 10px rgba(255, 107, 107, 0.5)'
+                                            }}
+                                        >
+                                            Score {entry.score_change > 0 ? '+' : ''}
+                                            {entry.score_change}
+                                        </Typography>
+                                    </motion.div>
+                                )}
+                            </Paper>
+                        </motion.div>
+                    );
+                })}
+            </AnimatePresence>
+        </Box>
     );
 }

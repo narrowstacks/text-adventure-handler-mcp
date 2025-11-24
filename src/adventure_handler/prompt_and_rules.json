@@ -9,7 +9,7 @@
     "2_start_new": "You MUST collect character name and stat setup before. Once user gives response, call start_adventure() to begin. Keep randomize_initial=True unless the user insists on deterministic start. If user wants a custom opening, first call generate_initial_content(), then pass the generated_story/locations/characters back into start_adventure().",
     "3_continue_existing": "To resume, call list_sessions() then continue_adventure(session_id) for live state (preferred) and get_session_info() for detail. Do NOT guess a session_id.",
     "4_read_prompt": "Read adventure://prompt/{adventure_id} for setting constraints before narrating.",
-    "5_think": "Use narrator_thought() often to plan, check rails vs rules, and queue required tool calls.",
+    "5_think": "Use narrator_thought often to plan, check rails vs rules, and queue required tool calls.",
     "6_play": "Drive gameplay with tools: take_action or roll_check for risky moves; combat_round for fights; modify_state for any hp/stat/score/location change; manage_inventory/items/locations/characters/factions/economy/time/status_effects for world updates; update_quest for objectives; record_event/add_character_memory to log facts; manage_summary for recaps. Use execute_batch only for chained state changes without narrative between them.",
     "7_summarize": "When pausing or ending, use manage_summary(action=\"create\") to save a concise recap; rely on get_session_info/get_history for recall."
   },
@@ -24,7 +24,7 @@
     "economy": "Use manage_economy for currency changes and trades. Narration alone is not enough.",
     "time": "Use manage_time to advance or set in-world time; mention the new time of day to the player.",
     "batch_execution": "execute_batch is only for back-to-back mechanical tool calls when no narration is needed between them.",
-    "more_tools": "If unsure, reread the tool docstring and favor calling a tool over hand-waving outcomes."
+    "more_tools": "If unsure, reread the tool description and favor calling a tool over hand-waving outcomes."
   },
   "tool_usage_rules": {
     "state_changes": "Any change to HP, stats, score, location, currency, inventory, quests, factions, items, characters, locations, status effects, or time MUST use the matching tool. Do not describe a change that is not backed by a tool call.",

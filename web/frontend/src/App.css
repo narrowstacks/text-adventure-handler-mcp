@@ -1,42 +1,154 @@
+/* CSS Custom Properties for animations and effects */
+:root {
+  /* Glow colors */
+  --glow-success: rgba(124, 231, 194, 0.6);
+  --glow-error: rgba(255, 107, 107, 0.6);
+  --glow-warning: rgba(240, 199, 94, 0.6);
+  --glow-info: rgba(95, 224, 255, 0.6);
+  --glow-purple: rgba(192, 132, 252, 0.6);
+
+  /* Animation durations */
+  --duration-fast: 0.15s;
+  --duration-normal: 0.3s;
+  --duration-slow: 0.5s;
+
+  /* Gaming accent colors */
+  --color-hp: #ff6b6b;
+  --color-hp-glow: rgba(255, 107, 107, 0.5);
+  --color-mana: #5fe0ff;
+  --color-gold: #f0c75e;
+  --color-xp: #c792ea;
+}
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  min-height: 100vh;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Grainy texture overlay */
+.grainy {
+  position: relative;
+  overflow: hidden;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.grainy::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
 }
 
-.card {
-  padding: 2em;
+/* Glow utility classes */
+.glow-success {
+  box-shadow: 0 0 20px var(--glow-success);
 }
 
-.read-the-docs {
-  color: #888;
+.glow-error {
+  box-shadow: 0 0 20px var(--glow-error);
+}
+
+.glow-warning {
+  box-shadow: 0 0 20px var(--glow-warning);
+}
+
+.glow-info {
+  box-shadow: 0 0 20px var(--glow-info);
+}
+
+/* Pulse animation keyframes */
+@keyframes pulse-glow-success {
+  0%, 100% { box-shadow: 0 0 5px var(--glow-success); }
+  50% { box-shadow: 0 0 25px var(--glow-success); }
+}
+
+@keyframes pulse-glow-error {
+  0%, 100% { box-shadow: 0 0 5px var(--glow-error); }
+  50% { box-shadow: 0 0 25px var(--glow-error); }
+}
+
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Pulse animation classes */
+.pulse-success {
+  animation: pulse-glow-success 2s infinite;
+}
+
+.pulse-error {
+  animation: pulse-glow-error 2s infinite;
+}
+
+.pulse-scale {
+  animation: pulse-scale 1.5s infinite;
+}
+
+.float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Shimmer loading effect */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Critical roll effects */
+.critical-success {
+  text-shadow: 0 0 10px var(--glow-success);
+  animation: pulse-scale 0.5s ease-out;
+}
+
+.critical-failure {
+  text-shadow: 0 0 10px var(--glow-error);
+  animation: pulse-scale 0.5s ease-out;
+}
+
+/* Smooth scroll for containers */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(124, 231, 194, 0.3) transparent;
+}
+
+.smooth-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.smooth-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.smooth-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(124, 231, 194, 0.3);
+  border-radius: 3px;
+}
+
+.smooth-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(124, 231, 194, 0.5);
 }

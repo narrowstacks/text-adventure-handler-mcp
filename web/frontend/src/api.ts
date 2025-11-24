@@ -1,29 +1,53 @@
 import axios from 'axios';
-import type { GameSession, ActionHistory, Adventure } from './types';
+import type {
+    Adventure,
+    DashboardData,
+    GameSessionDetail,
+    GameSessionListItem,
+    ActionHistory,
+    WorldState,
+    SessionSummaryRecord,
+    NarratorThoughtRecord,
+} from './types';
 
-// Use relative path so it goes through the same host/port (Nginx proxy in Docker, or Vite proxy in Dev)
-const API_BASE_URL = '/api';
+const api = axios.create({ baseURL: '/api' });
 
-export const api = axios.create({
-    baseURL: API_BASE_URL,
-});
+export const getDashboard = async (): Promise<DashboardData> => {
+    const res = await api.get('/dashboard');
+    return res.data;
+};
 
 export const getAdventures = async (): Promise<Adventure[]> => {
-    const response = await api.get('/adventures');
-    return response.data;
+    const res = await api.get('/adventures');
+    return res.data;
 };
 
-export const getRecentSessions = async (limit = 20): Promise<GameSession[]> => {
-    const response = await api.get(`/sessions?limit=${limit}`);
-    return response.data;
+export const getSessions = async (limit = 24): Promise<GameSessionListItem[]> => {
+    const res = await api.get(`/sessions?limit=${limit}`);
+    return res.data;
 };
 
-export const getSessionDetails = async (id: string): Promise<GameSession> => {
-    const response = await api.get(`/sessions/${id}`);
-    return response.data;
+export const getSession = async (id: string): Promise<GameSessionDetail> => {
+    const res = await api.get(`/sessions/${id}`);
+    return res.data;
 };
 
-export const getSessionHistory = async (id: string, limit = 50): Promise<ActionHistory[]> => {
-    const response = await api.get(`/sessions/${id}/history?limit=${limit}`);
-    return response.data;
+export const getSessionHistory = async (id: string, limit = 120): Promise<ActionHistory[]> => {
+    const res = await api.get(`/sessions/${id}/history?limit=${limit}`);
+    return res.data;
+};
+
+export const getSessionWorld = async (id: string): Promise<WorldState> => {
+    const res = await api.get(`/sessions/${id}/world`);
+    return res.data;
+};
+
+export const getSessionSummaries = async (id: string): Promise<SessionSummaryRecord[]> => {
+    const res = await api.get(`/sessions/${id}/summaries`);
+    return res.data;
+};
+
+export const getNarratorThoughts = async (id: string): Promise<NarratorThoughtRecord[]> => {
+    const res = await api.get(`/sessions/${id}/thoughts`);
+    return res.data;
 };
