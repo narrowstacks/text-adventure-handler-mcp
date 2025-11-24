@@ -21,8 +21,8 @@ db = AdventureDB()
 @mcp.tool()
 async def initial_instructions() -> dict:
     """
-    Get instructions for starting a text adventure session.
-    Call this tool first to understand the workflow and available options.
+    Call this FIRST. Returns the required workflow, rules, and current adventure catalog.
+    Do not improvise until you read this payload; it tells you how to run the session.
     """
     await db.init_db()  # Ensure DB is ready
     adventures = await db.list_adventures()
@@ -45,12 +45,11 @@ async def initial_instructions() -> dict:
 @mcp.tool()
 async def get_rules(section_name: str = None) -> dict:
     """
-    Get specific sections or all eligible sections of the adventure rules and guidelines.
-    Excludes sections like 'welcome', 'drop_context', 'workflow', and 'features'.
+    Retrieve enforceable rules. Use this to refresh constraints mid-session.
+    Hidden sections ('welcome','drop_context','workflow','features','available_adventures') are blocked.
 
     Args:
-        section_name: (Optional) The name of the specific section to retrieve (e.g., "guidelines_and_rules").
-                      If not provided, all eligible sections will be returned.
+        section_name: Optional specific section (e.g., "guidelines_and_rules"); omit to fetch all allowed.
     """
     file_path = Path(__file__).parent / "prompt_and_rules.json"
     if not file_path.exists():
@@ -81,16 +80,14 @@ async def narrator_thought(
     user_behavior: str,
 ) -> dict:
     """
-    Log an internal thought to help steer the story.
-    
+    Private log for your next move—never show to the user. Use before pivoting tone/plot.
+
     Args:
-        session_id: The game session
-        thought: Your internal monologue/analysis of the current situation. Does the action taken by the user follow the important_rules? Does this line up with the world's character's memory of the user? Are you on track with the story?
-        story_status: One of "on_track", "off_rails", "user_deviating", "completed", "stalled"
-        plan: What you intend to do next to advance the story or correct course. Planned tool calls and any skill checks you intend to perform.
-        user_behavior: One of "cooperative", "creative", "disruptive", "cheating". How the user is behaving in the story. If they asked for a direct tool call, mark this as "cheating".
-        
-    The output of this tool is for YOU (the AI), not the user. Use it to guide your next response.
+        session_id: Target session.
+        thought: Brief internal assessment vs important_rules and memories.
+        story_status: "on_track" | "off_rails" | "user_deviating" | "completed" | "stalled".
+        plan: Concrete next steps and tool calls.
+        user_behavior: "cooperative" | "creative" | "disruptive" | "cheating".
     """
     from .models import NarratorThought
     
@@ -118,9 +115,8 @@ async def narrator_thought(
 @mcp.tool()
 async def execute_batch(session_id: str, commands: list[dict]) -> dict:
     """
-    Execute multiple commands in sequence.
-    ONLY for pure actions that don't require intermediate AI text generation from you.
-    Ensure commands cannot conflict and can be safely chained without breaking the story flow.
+    Chain multiple ACTION-ONLY tool calls—no narration between them. Use to apply mechanical updates quickly.
+    Reject if any command needs your prose. Ensure commands are non-conflicting and linear.
 
 
     Args:
@@ -188,14 +184,14 @@ async def execute_batch(session_id: str, commands: list[dict]) -> dict:
 
 @mcp.tool()
 async def list_adventures() -> list[dict]:
-    """List all available adventures with title and description."""
+    """Quick catalog of adventures. Call before start_adventure to pick a valid id."""
     return await db.list_adventures()
 
 
 @mcp.tool()
 async def list_sessions(limit: int = 20) -> list[dict]:
     """
-    List recent game sessions for continuing adventures.
+    List recent sessions to resume. Use this instead of guessing a session_id.
     """
     return await db.list_sessions(limit)
 
@@ -203,17 +199,9 @@ async def list_sessions(limit: int = 20) -> list[dict]:
 @mcp.tool()
 async def generate_initial_content(adventure_id: str) -> dict:
     """
-    Generate a prompt and guidance for AI to create custom initial story, words, and characters.
-
-    This tool provides the context needed for you (the AI) to generate:
-    - A custom initial story (instead of using the predefined one)
-    - Custom character names and details
-    - Custom location descriptions
-
-    After calling this tool, generate your custom content and then call start_adventure()
-    with the generated_story, generated_characters, and/or generated_locations parameters.
-
-    Returns a prompt template and adventure context to guide AI generation.
+    Use when you want to replace the canned opening. Returns a strict JSON prompt so YOU can author
+    the opening story, locations, and NPCs. After generating, you MUST call start_adventure with
+    generated_story / generated_characters / generated_locations.
     """
     await db.init_db()
 
@@ -291,7 +279,7 @@ Generate only valid JSON, no markdown formatting or extra text."""
 @mcp.tool()
 async def continue_adventure(session_id: str) -> dict:
     """
-    Continue an existing adventure session.
+    Resume an existing session. Use immediately after list_sessions to pull live state and history.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -337,18 +325,15 @@ async def start_adventure(
     generated_characters: list[dict] = None,
 ) -> dict:
     """
-    Start a new game session with character customization.
-    Returns session_id and initial game state.
+    Single entry point to launch a session. Use ONLY after picking adventure_id (or generating custom content).
+    Returns session_id and initial state you must echo back to the user.
 
     Args:
-        adventure_id: The adventure to start
-        randomize_initial: If True, use randomize_word substitution on templates (default: True)
-        character_name: Optional player character name
-        roll_stats: If True, roll stats using 4d6 drop lowest
-        custom_stats: Optional dict of stat_name -> value for custom stat assignment
-        generated_story: Optional AI-generated initial story (overrides adventure's initial_story)
-        generated_locations: Optional list of AI-generated Location dicts to create in the world
-        generated_characters: Optional list of AI-generated Character dicts to create in the world
+        adventure_id: Required.
+        randomize_initial: Leave True unless you need deterministic templates.
+        character_name: Optional player name to store.
+        roll_stats/custom_stats: Choose one path for stat setup.
+        generated_story/locations/characters: Pass outputs you authored via generate_initial_content.
     """
     # Ensure DB is initialized
     await db.init_db()
@@ -473,21 +458,11 @@ async def get_session_info(
     include_available_items: bool = False
 ) -> dict:
     """
-    Get comprehensive session information with optional components.
-
-    This consolidated tool replaces get_state(), get_history(), and get_character_memories().
+    One-stop status fetch. Prefer this over piecemeal state/history/memory calls.
 
     Args:
-        session_id: The game session ID
-        include_state: Include current game state (location, stats, inventory, hp, quests, etc.)
-        include_history: Include action history
-        include_character_memories: Character name to retrieve memories for (None to skip)
-        history_limit: Maximum number of history entries to return (default: 20)
-        memory_limit: Maximum number of memories to return (default: 10)
-        include_nearby_characters: Include characters at current location
-        include_available_items: Include items at current location
-
-    Returns a dict with requested information components.
+        include_* flags: Turn on only what you need; keep payload lean.
+        include_character_memories: Pass a name to pull their top memories.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -554,7 +529,8 @@ async def get_session_info(
 @mcp.tool()
 async def take_action(session_id: str, action: str, stat_name: str = None, difficulty_class: int = 10) -> dict:
     """
-    Perform a fictional in-game action for the player character.
+    Log a player action and resolve an optional check. Call this for narrative actions that may fail.
+    You narrate the outcome using the returned success flag and dice_roll—do not invent a roll yourself.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -611,19 +587,12 @@ async def combat_round(
     damage_dice: str = "1d6"
 ) -> dict:
     """
-    Resolve a round of combat.
-    1. Player attacks Target (d20 + stat vs AC).
-    2. If hit, calculate damage.
-    3. Target attacks Player (automatic damage for simplicity or AI determined).
-    4. Updates Player HP.
+    Run a single player attack turn. Use this instead of hand-waving combat math.
+    After you get the result, narrate the exchange and adjust player HP via modify_state if counter-attack hits.
 
     Args:
-        session_id: Game session
-        target_name: Name of enemy
-        player_action: Description of attack (e.g., "Swing sword")
-        attack_stat: Stat to use for attack roll
-        target_ac: Enemy Armor Class (Difficulty to hit)
-        damage_dice: Damage on hit (e.g. "1d6", "1d8+2")
+        player_action: Plain description of the attack.
+        attack_stat/target_ac/damage_dice: Required to resolve the roll.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -679,7 +648,8 @@ async def update_quest(
     complete_objective: str = None
 ) -> dict:
     """
-    Manage quests. Can create new quest (provide title) or update existing.
+    Strict quest control. Start a quest by providing title, or update status/objectives on an existing id.
+    Use this whenever objectives shift; do not track quests in free text.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -724,8 +694,8 @@ async def update_quest(
 @mcp.tool()
 async def interact_npc(session_id: str, npc_name: str, sentiment_change: int) -> dict:
     """
-    Update relationship/reputation with an NPC.
-    sentiment_change: +ve for good interaction, -ve for bad.
+    Adjust NPC relationship score. sentiment_change must reflect the last interaction; negative for harm.
+    Do not narrate here—follow up with dialogue in the main reply.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -753,7 +723,7 @@ async def interact_npc(session_id: str, npc_name: str, sentiment_change: int) ->
 
 @mcp.tool()
 async def roll_check(session_id: str, stat_name: str = None, difficulty_class: int = 10) -> dict:
-    """Perform a stat check or plain d20 roll."""
+    """Quick d20/stat check. Call before risky moves; don't fake probabilities."""
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
@@ -778,15 +748,13 @@ async def modify_state(
     reason: str = None
 ) -> dict:
     """
-    Modular tool for player state modification operations.
-
-    This consolidated tool replaces modify_hp(), modify_stat(), update_score(), and move_to_location().
+    The ONLY tool for HP, stat, score, or location changes. Call immediately after outcomes—never edit state in prose.
 
     Actions:
-    - hp: Modify HP (requires value as int, positive heals/negative damages, optional reason)
-    - stat: Modify stat (requires stat_name and value as int change amount)
-    - score: Update score (requires value as int points to add/subtract)
-    - location: Move player (requires value as location string)
+    - hp: Heal/damage (int). Provide reason when possible.
+    - stat: Adjust named stat by int delta.
+    - score: Add/subtract points.
+    - location: Move player to a named location string.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -899,17 +867,10 @@ async def manage_inventory(
     properties: dict = None
 ) -> dict:
     """
-    Modular tool for inventory management operations.
-
-    This consolidated tool replaces add_inventory() and remove_inventory().
+    Single inventory authority. Use instead of freeform text edits.
 
     Actions:
-    - add: Add item to inventory (requires item_name, optional quantity and properties)
-    - remove: Remove item from inventory (requires item_name, optional quantity)
-    - update: Update item properties (requires item_name and properties)
-    - check: Check if specific item exists in inventory (requires item_name)
-    - list: List all inventory items (no additional parameters needed)
-    - use: Mark item as used/consumed (requires item_name, optional quantity)
+    - add/remove/update/check/list/use — supply item_name where required; respect quantities; mark consumables via properties.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1068,7 +1029,8 @@ async def randomize_word(
     use_predefined: bool = True,
 ) -> dict:
     """
-    Get a random word from adventure's predefined list or generate a prompt for AI.
+    Pull a random word from the adventure lists (preferred) or get a prompt to generate one.
+    Use for flavor, naming, and template fills. Choose category to stay on-theme.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1114,15 +1076,9 @@ async def manage_summary(
     summary_id: str = None
 ) -> dict:
     """
-    Modular tool for session summary management.
+    Maintain concise session summaries. Create after major beats; fetch for recaps instead of rereading history.
 
-    This consolidated tool replaces summarize_progress() and get_adventure_summary().
-
-    Actions:
-    - create: Create new session summary (requires summary, optional key_events and character_changes)
-    - get: Get all session summaries with adventure context
-    - get_latest: Get only the most recent summary
-    - delete: Delete a specific summary (requires summary_id)
+    Actions: create | get | get_latest | delete.
     """
     from .models import SessionSummary
 
@@ -1375,12 +1331,8 @@ async def _add_memory_to_character(character: Character, description: str, type:
 @mcp.tool()
 async def record_event(session_id: str, event_description: str, location: str = None, importance: int = 1, tags: list[str] = None) -> dict:
     """
-    Record an event that occurred in the world. Call this after any significant event (e.g., "Player killed the goblin king", "An explosion rocked the town square"). It will automatically update
-     the state of all witnesses in the location.
-    Automatically triggers the "Perception Module" to distribute memories to characters (witnesses) in the location.
-    Use this when something significant happens that NPCs should know about.
-    Tags can be used to categorize the event (e.g., ["hostile", "magic", "theft"]).
-    Keep it short and concise. Use the least amount of words possible to describe the event but don't leave out important details.
+    Mandatory after any public, notable event. Writes memories to all witnesses at the location.
+    Keep description tight but complete; tag it for future recall (e.g., ["hostile","magic"]).
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1406,11 +1358,8 @@ async def record_event(session_id: str, event_description: str, location: str = 
 @mcp.tool()
 async def add_character_memory(session_id: str, character_name: str, description: str, type: str = "rumor", importance: int = 1, tags: list[str] = None) -> dict:
     """
-    Manually implant a memory into a specific character (e.g., you tell them something, or they read a note).
-    Use this for specific, non-public events, like whispering a secret to an NPC or spreading a rumor.
-    Type can be "observation", "interaction", "rumor".
-    Keep it short and concise. Use the least amount of words possible to describe the event but don't leave out important details.
-
+    Plant a targeted memory in one NPC (whisper, rumor, note). Do NOT use for public events—use record_event instead.
+    Type: observation | interaction | rumor. Keep wording short and factual.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1440,14 +1389,8 @@ async def manage_character(
     character_data: dict | None = None
 ) -> dict:
     """
-    Modular tool for character CRUD operations.
-
-    Actions:
-    - create: Create new character (requires character_data with: name, description, location, stats?, properties?)
-    - read: Get character by ID (requires character_id)
-    - update: Update character (requires character_id and character_data)
-    - delete: Delete character (requires character_id)
-    - list: List all characters in session
+    CRUD for NPCs. Populate required fields; keep stats/properties structured.
+    Actions: create | read | update | delete | list.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1526,14 +1469,8 @@ async def manage_location(
     location_data: dict | None = None
 ) -> dict:
     """
-    Modular tool for location CRUD operations.
-
-    Actions:
-    - create: Create new location (requires location_data with: name, description, connected_to?, properties?)
-    - read: Get location by ID (requires location_id)
-    - update: Update location (requires location_id and location_data)
-    - delete: Delete location (requires location_id)
-    - list: List all locations in session
+    CRUD for locations; connect them deliberately. Actions: create | read | update | delete | list.
+    Always supply name/description; keep connected_to coherent.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1607,14 +1544,8 @@ async def manage_item(
     item_data: dict | None = None
 ) -> dict:
     """
-    Modular tool for item CRUD operations.
-
-    Actions:
-    - create: Create new item (requires item_data with: name, description, location?, properties?)
-    - read: Get item by ID (requires item_id)
-    - update: Update item (requires item_id and item_data)
-    - delete: Delete item (requires item_id)
-    - list: List all items in session
+    CRUD for world items. Use this before moving items narratively.
+    Actions: create | read | update | delete | list. Supply name/description; set location or inventory intent clearly.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1688,13 +1619,8 @@ async def manage_status_effect(
     effect_data: dict | None = None
 ) -> dict:
     """
-    Modular tool for status effect management.
-
-    Actions:
-    - apply: Apply new status effect (requires effect_data with: name, description, duration, stat_modifiers?, properties?)
-    - remove: Remove status effect (requires effect_id)
-    - list: List all active status effects
-    - update: Update effect duration or modifiers (requires effect_id and effect_data)
+    Control status effects. Apply/remove/list/update instead of ad-hoc narration.
+    Provide duration and modifiers when applying; tick or alter via update as time passes.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1759,12 +1685,8 @@ async def manage_time(
     reason: str | None = None
 ) -> dict:
     """
-    Modular tool for time management (AI-controlled).
-
-    Actions:
-    - advance: Advance time by hours (requires hours, optional reason)
-    - get: Get current time information
-    - set: Set specific time (requires hours for time of day)
+    Authoritative clock control. Advance after travel/rest; never skip day rollover.
+    Actions: advance | get | set. Provide reason when advancing to track pacing.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1827,14 +1749,8 @@ async def manage_faction(
     faction_data: dict | None = None
 ) -> dict:
     """
-    Modular tool for faction and reputation management.
-
-    Actions:
-    - create: Create new faction (requires faction_data with: name, description, initial_reputation?)
-    - update_reputation: Modify faction reputation (requires faction_id and faction_data with: change, reason?)
-    - list: List all factions with reputation levels
-    - get: Get specific faction details (requires faction_id)
-    - delete: Delete faction (requires faction_id)
+    Govern factions and reputation. Use update_reputation whenever player actions shift standing.
+    Actions: create | update_reputation | list | get | delete.
     """
     session = await db.get_session(session_id)
     if not session:
@@ -1921,15 +1837,12 @@ async def manage_economy(
     details: dict | None = None
 ) -> dict:
     """
-    Modular tool for economy and item transfer operations.
-
+    Enforce currency and trades. Never adjust money in prose—use this.
     Actions:
-    - add_currency: Add money to player (requires amount, optional reason in details)
-    - remove_currency: Remove money from player (requires amount, optional reason in details)
-    - get_balance: Get current currency balance
-    - buy_item: Purchase item (requires item_id and amount as cost)
-    - sell_item: Sell item (requires item_id and amount as price)
-    - transfer_item: Move item between locations (requires item_id and details with: from_location, to_location)
+    - add_currency / remove_currency (with reason when possible)
+    - get_balance
+    - buy_item / sell_item (use costs; respects balance)
+    - transfer_item (between locations)
     """
     session = await db.get_session(session_id)
     if not session:
