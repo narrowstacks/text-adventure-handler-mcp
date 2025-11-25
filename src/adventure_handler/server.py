@@ -328,7 +328,7 @@ async def start_adventure(
     randomize_initial: bool = True,
     character_name: str = None,
     roll_stats: bool = False,
-    custom_stats: dict[str, int] = None,
+    custom_stats: JsonDict = None,
     generated_story: str = None,
     generated_locations: list[dict] = None,
     generated_characters: list[dict] = None,
@@ -898,7 +898,7 @@ async def manage_inventory(
     action: str,
     item_name: str = None,
     quantity: int = 1,
-    properties: dict = None
+    properties: JsonDict = None
 ) -> dict:
     """
     Single inventory authority. Use instead of freeform text edits.
@@ -1835,10 +1835,17 @@ async def manage_status_effect(
     session_id: str,
     action: str,
     effect_id: str | None = None,
-    effect_data: dict | None = None
+    effect_data: JsonDict = None
 ) -> dict:
     """
     Control status effects. Apply/remove/list/update instead of ad-hoc narration.
+
+    Args:
+        session_id: The game session ID
+        action: Operation to perform - "apply", "remove", "list", "update", or "tick"
+        effect_id: The ID of the status effect (for remove/update operations)
+        effect_data: Effect details as dictionary or JSON string
+
     Provide duration and modifiers when applying; tick or alter via update as time passes.
     """
     session = await db.get_session(session_id)
@@ -1976,10 +1983,17 @@ async def manage_faction(
     session_id: str,
     action: str,
     faction_id: str | None = None,
-    faction_data: dict | None = None
+    faction_data: JsonDict = None
 ) -> dict:
     """
     Govern factions and reputation. Use update_reputation whenever player actions shift standing.
+
+    Args:
+        session_id: The game session ID
+        action: Operation to perform - "create", "update_reputation", "list", "get", or "delete"
+        faction_id: The ID of the faction (for update/get/delete operations)
+        faction_data: Faction details as dictionary or JSON string
+
     Actions: create | update_reputation | list | get | delete.
     """
     session = await db.get_session(session_id)
@@ -2068,10 +2082,18 @@ async def manage_economy(
     action: str,
     amount: int | None = None,
     item_id: str | None = None,
-    details: dict | None = None
+    details: JsonDict = None
 ) -> dict:
     """
     Enforce currency and trades. Never adjust money in prose—use this.
+
+    Args:
+        session_id: The game session ID
+        action: The economy action to perform
+        amount: The amount of currency (for add/remove/buy/sell actions)
+        item_id: The ID of the item (for buy/sell/transfer actions)
+        details: Additional details as dictionary or JSON string (e.g., {"reason": "Payment from quest"})
+
     Actions:
     - add_currency / remove_currency (with reason when possible)
     - get_balance
