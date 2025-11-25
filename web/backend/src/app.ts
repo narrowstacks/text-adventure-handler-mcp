@@ -173,8 +173,8 @@ app.get('/api/sessions', (req, res) => {
         ps.game_day,
         ps.game_time
       FROM game_sessions gs
-      JOIN player_state ps ON gs.id = ps.session_id
-      JOIN adventures a ON gs.adventure_id = a.id
+      LEFT JOIN player_state ps ON gs.id = ps.session_id
+      LEFT JOIN adventures a ON gs.adventure_id = a.id
       ORDER BY gs.last_played DESC
       LIMIT ?
     `).all(limit) as any[];

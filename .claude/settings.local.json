@@ -20,7 +20,8 @@
       "Bash(uv build:*)",
       "Bash(pip index:*)",
       "Bash(curl:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(sqlite3:*)"
     ],
     "deny": [],
     "ask": [

@@ -160,3 +160,4 @@ adventure_handler.db
 web/backend/node_modules
 web/frontend/node_modules
 web/frontend/dist
+.claude/settings.local.json
