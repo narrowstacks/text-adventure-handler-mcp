@@ -14,8 +14,8 @@ RUN bun install --frozen-lockfile
 COPY backend/ .
 RUN bun run build
 
-# Final image with nginx + node
-FROM node:22-alpine
+# Final image with nginx + bun
+FROM oven/bun:1-alpine
 
 # Install nginx and supervisor
 RUN apk add --no-cache nginx supervisor
@@ -64,7 +64,7 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 [program:backend]
-command=node /app/dist/index.js
+command=bun /app/dist/index.js
 directory=/app
 stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
