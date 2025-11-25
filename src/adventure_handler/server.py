@@ -1409,36 +1409,86 @@ async def manage_character(
     session_id: str,
     action: str,
     character_id: str | None = None,
-    character_data: dict | None = None
+    character_data: dict | str | None = None
 ) -> dict:
     """
-    CRUD for NPCs and Characters.
-    
+    Manage NPCs and Characters with full CRUD operations. Characters bring your adventure world to life.
+
     Args:
-        session_id: The ID of the current game session.
-        action: One of 'create', 'read', 'update', 'delete', 'list'.
-        character_id: Required for read, update, delete.
-        character_data: Dictionary containing character details.
-            For 'create', required fields are:
-            - name: (str) Character's name
-            - description: (str) Physical/personality description
-            - location: (str) ID of the location where they start
-            Optional fields:
-            - stats: (dict) e.g. {"hp": 10, "str": 12}
-            - properties: (dict) e.g. {"is_merchant": True}
+        session_id: The game session ID
+        action: Operation to perform - "create", "read", "update", "delete", or "list"
+        character_id: Required for read/update/delete operations. The unique ID of the character.
+        character_data: Required for create/update. Pass as a dictionary (not JSON string).
+
+    Actions:
+        - "create": Add a new NPC to the game world
+        - "read": Get details of a specific character
+        - "update": Modify an existing character
+        - "delete": Remove a character from the game
+        - "list": Get all characters in the session
+
+    Character Data Structure:
+        {
+            "name": str,              # Required - The character's name (e.g., "Gandalf")
+            "description": str,       # Required - Physical/personality description
+            "location": str,          # Required - ID of starting location
+            "stats": dict,            # Optional - Character stats (e.g., {"hp": 10, "str": 12})
+            "properties": dict        # Optional - Custom properties (e.g., {"is_merchant": true, "faction": "rebels"})
+        }
+
+    Examples:
+        # Create a new NPC
+        manage_character(
+            session_id="abc123",
+            action="create",
+            character_data={
+                "name": "Elder Thorne",
+                "description": "An ancient wizard with a long white beard and piercing blue eyes.",
+                "location": "wizard_tower",
+                "stats": {"hp": 50, "magic": 20},
+                "properties": {"is_quest_giver": true, "knows_ancient_magic": true}
+            }
+        )
+
+        # Update a character
+        manage_character(
+            session_id="abc123",
+            action="update",
+            character_id="char_12345",
+            character_data={
+                "location": "tavern",
+                "description": "The wizard looks tired and disheveled.",
+                "stats": {"hp": 25}
+            }
+        )
+
+        # List all characters
+        manage_character(session_id="abc123", action="list")
+
+    Returns:
+        Dictionary with success status and relevant data based on action
     """
+    # Handle JSON string input if provided
+    if isinstance(character_data, str):
+        try:
+            character_data = json.loads(character_data)
+        except json.JSONDecodeError as e:
+            return {"error": f"Invalid JSON in character_data: {str(e)}. Please provide a valid dictionary or JSON string."}
+
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
 
     if action == "create":
         if not character_data:
-            return {"error": "character_data required for create action"}
-        
+            return {"error": "character_data required for create action. Please provide a dictionary with 'name', 'description', and 'location' fields."}
+        if not isinstance(character_data, dict):
+            return {"error": "character_data must be a dictionary after parsing. Got type: " + str(type(character_data))}
+
         required_fields = ["name", "description", "location"]
-        missing = [f for f in required_fields if f not in character_data]
+        missing = [f for f in required_fields if f not in character_data or not character_data[f]]
         if missing:
-            return {"error": f"Missing required fields in character_data: {', '.join(missing)}"}
+            return {"error": f"Missing required fields in character_data: {', '.join(missing)}. All of 'name', 'description', and 'location' must be non-empty strings."}
 
         char_id = character_data.get("id", f"char_{uuid.uuid4().hex[:8]}")
         character = Character(
@@ -1466,7 +1516,9 @@ async def manage_character(
         if not character_id:
             return {"error": "character_id required for update action"}
         if not character_data:
-            return {"error": "character_data required for update action"}
+            return {"error": "character_data required for update action. Please provide fields to update."}
+        if not isinstance(character_data, dict):
+            return {"error": "character_data must be a dictionary after parsing. Got type: " + str(type(character_data))}
         character = await db.get_character(character_id)
         if not character:
             return {"error": f"Character {character_id} not found"}
@@ -1507,22 +1559,81 @@ async def manage_location(
     session_id: str,
     action: str,
     location_id: str | None = None,
-    location_data: dict | None = None
+    location_data: dict | str | None = None
 ) -> dict:
     """
-    CRUD for locations; connect them deliberately. Actions: create | read | update | delete | list.
-    Always supply name/description; keep connected_to coherent.
+    Manage game locations with full CRUD operations. Locations form the world map of your adventure.
+
+    Args:
+        session_id: The game session ID
+        action: Operation to perform - "create", "read", "update", "delete", or "list"
+        location_id: Required for read/update/delete operations. The unique ID of the location.
+        location_data: Required for create/update. Pass as a dictionary (not JSON string).
+
+    Actions:
+        - "create": Add a new location to the game world
+        - "read": Get details of a specific location
+        - "update": Modify an existing location
+        - "delete": Remove a location from the game
+        - "list": Get all locations in the session
+
+    Location Data Structure:
+        {
+            "name": str,              # Required - The location name (e.g., "Dark Forest")
+            "description": str,       # Required - Detailed description of the location
+            "connected_to": list,     # Optional - List of location IDs this connects to
+            "properties": dict        # Optional - Custom properties (e.g., {"locked": true, "hidden": false})
+        }
+
+    Examples:
+        # Create a new location
+        manage_location(
+            session_id="abc123",
+            action="create",
+            location_data={
+                "name": "Pawnbroker's Shop",
+                "description": "A cluttered shop filled with curious items. The owner, Mr. Verris, eyes you suspiciously.",
+                "connected_to": ["town_square", "back_alley"],
+                "properties": {"shop_type": "pawnbroker", "owner": "Mr. Verris"}
+            }
+        )
+
+        # Update a location
+        manage_location(
+            session_id="abc123",
+            action="update",
+            location_id="loc_12345",
+            location_data={
+                "description": "The shop is now empty, Mr. Verris has fled.",
+                "properties": {"abandoned": true}
+            }
+        )
+
+        # List all locations
+        manage_location(session_id="abc123", action="list")
+
+    Returns:
+        Dictionary with success status and relevant data based on action
     """
+    # Handle JSON string input if provided
+    if isinstance(location_data, str):
+        try:
+            location_data = json.loads(location_data)
+        except json.JSONDecodeError as e:
+            return {"error": f"Invalid JSON in location_data: {str(e)}. Please provide a valid dictionary or JSON string."}
+
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
 
     if action == "create":
         if not location_data:
-            return {"error": "location_data required for create action"}
+            return {"error": "location_data required for create action. Please provide a dictionary with 'name' and 'description' fields."}
+        if not isinstance(location_data, dict):
+            return {"error": "location_data must be a dictionary after parsing. Got type: " + str(type(location_data))}
         missing = [f for f in ["name", "description"] if f not in location_data or not location_data[f]]
         if missing:
-            return {"error": f"Missing required fields in location_data: {', '.join(missing)}"}
+            return {"error": f"Missing required fields in location_data: {', '.join(missing)}. Both 'name' and 'description' must be non-empty strings."}
         loc_id = location_data.get("id", f"loc_{uuid.uuid4().hex[:8]}")
         location = Location(
             id=loc_id,
@@ -1547,7 +1658,9 @@ async def manage_location(
         if not location_id:
             return {"error": "location_id required for update action"}
         if not location_data:
-            return {"error": "location_data required for update action"}
+            return {"error": "location_data required for update action. Please provide fields to update."}
+        if not isinstance(location_data, dict):
+            return {"error": "location_data must be a dictionary after parsing. Got type: " + str(type(location_data))}
         location = await db.get_location(location_id)
         if not location:
             return {"error": f"Location {location_id} not found"}
@@ -1585,22 +1698,91 @@ async def manage_item(
     session_id: str,
     action: str,
     item_id: str | None = None,
-    item_data: dict | None = None
+    item_data: dict | str | None = None
 ) -> dict:
     """
-    CRUD for world items. Use this before moving items narratively.
-    Actions: create | read | update | delete | list. Supply name/description; set location or inventory intent clearly.
+    Manage game items with full CRUD operations. Items can exist in locations or player inventory.
+
+    Args:
+        session_id: The game session ID
+        action: Operation to perform - "create", "read", "update", "delete", or "list"
+        item_id: Required for read/update/delete operations. The unique ID of the item.
+        item_data: Required for create/update. Pass as a dictionary (not JSON string).
+
+    Actions:
+        - "create": Add a new item to the game world
+        - "read": Get details of a specific item
+        - "update": Modify an existing item
+        - "delete": Remove an item from the game
+        - "list": Get all items in the session
+
+    Item Data Structure:
+        {
+            "name": str,              # Required - The item name (e.g., "Magic Sword")
+            "description": str,       # Required - Detailed description of the item
+            "location": str,          # Optional - Location ID where item is found
+            "in_inventory": bool,     # Optional - True if in player inventory
+            "properties": dict        # Optional - Custom properties (e.g., {"damage": 10, "magical": true})
+        }
+
+    Examples:
+        # Create a new item in a location
+        manage_item(
+            session_id="abc123",
+            action="create",
+            item_data={
+                "name": "Ancient Tome",
+                "description": "A dusty book with strange symbols on the cover.",
+                "location": "library",
+                "properties": {"readable": true, "language": "elvish"}
+            }
+        )
+
+        # Create an item in player inventory
+        manage_item(
+            session_id="abc123",
+            action="create",
+            item_data={
+                "name": "Health Potion",
+                "description": "A red liquid that restores health.",
+                "in_inventory": true,
+                "properties": {"consumable": true, "healing": 20}
+            }
+        )
+
+        # Update an item
+        manage_item(
+            session_id="abc123",
+            action="update",
+            item_id="item_12345",
+            item_data={
+                "description": "The tome now glows with magical energy.",
+                "properties": {"activated": true}
+            }
+        )
+
+    Returns:
+        Dictionary with success status and relevant data based on action
     """
+    # Handle JSON string input if provided
+    if isinstance(item_data, str):
+        try:
+            item_data = json.loads(item_data)
+        except json.JSONDecodeError as e:
+            return {"error": f"Invalid JSON in item_data: {str(e)}. Please provide a valid dictionary or JSON string."}
+
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
 
     if action == "create":
         if not item_data:
-            return {"error": "item_data required for create action"}
+            return {"error": "item_data required for create action. Please provide a dictionary with 'name' and 'description' fields."}
+        if not isinstance(item_data, dict):
+            return {"error": "item_data must be a dictionary after parsing. Got type: " + str(type(item_data))}
         missing = [f for f in ["name", "description"] if f not in item_data or not item_data[f]]
         if missing:
-            return {"error": f"Missing required fields in item_data: {', '.join(missing)}"}
+            return {"error": f"Missing required fields in item_data: {', '.join(missing)}. Both 'name' and 'description' must be non-empty strings."}
         itm_id = item_data.get("id", f"item_{uuid.uuid4().hex[:8]}")
         item = Item(
             id=itm_id,
@@ -1625,7 +1807,9 @@ async def manage_item(
         if not item_id:
             return {"error": "item_id required for update action"}
         if not item_data:
-            return {"error": "item_data required for update action"}
+            return {"error": "item_data required for update action. Please provide fields to update."}
+        if not isinstance(item_data, dict):
+            return {"error": "item_data must be a dictionary after parsing. Got type: " + str(type(item_data))}
         item = await db.get_item(item_id)
         if not item:
             return {"error": f"Item {item_id} not found"}
