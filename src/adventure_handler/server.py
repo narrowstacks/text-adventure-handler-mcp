@@ -4,15 +4,21 @@ import uuid
 import asyncio
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Annotated
 
 from fastmcp import FastMCP
 from fastmcp.resources import Resource
+from pydantic import BeforeValidator
 
 from .database import AdventureDB
+from .json_validator import json_or_dict_validator
 from .models import Adventure, StatDefinition, WordList, Character, Location, Item, InventoryItem, QuestStatus, Memory, StatusEffect, Faction
 from .dice import stat_check
 from .dice import roll_check as dice_roll_check
 from .randomizer import get_random_word, generate_word_prompt, process_template
+
+# Type alias for JSON-validated dictionary parameters
+JsonDict = Annotated[Optional[dict], BeforeValidator(json_or_dict_validator)]
 
 # Initialize FastMCP server
 mcp = FastMCP("Text Adventure Handler MCP")
@@ -1409,7 +1415,7 @@ async def manage_character(
     session_id: str,
     action: str,
     character_id: str | None = None,
-    character_data: dict | str | None = None
+    character_data: JsonDict = None
 ) -> dict:
     """
     Manage NPCs and Characters with full CRUD operations. Characters bring your adventure world to life.
@@ -1418,7 +1424,7 @@ async def manage_character(
         session_id: The game session ID
         action: Operation to perform - "create", "read", "update", "delete", or "list"
         character_id: Required for read/update/delete operations. The unique ID of the character.
-        character_data: Required for create/update. Pass as a dictionary (not JSON string).
+        character_data: Required for create/update. Can be a dictionary or JSON string.
 
     Actions:
         - "create": Add a new NPC to the game world
@@ -1468,13 +1474,7 @@ async def manage_character(
     Returns:
         Dictionary with success status and relevant data based on action
     """
-    # Handle JSON string input if provided
-    if isinstance(character_data, str):
-        try:
-            character_data = json.loads(character_data)
-        except json.JSONDecodeError as e:
-            return {"error": f"Invalid JSON in character_data: {str(e)}. Please provide a valid dictionary or JSON string."}
-
+    # JSON strings are automatically parsed by the JsonDict type annotation
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
@@ -1559,7 +1559,7 @@ async def manage_location(
     session_id: str,
     action: str,
     location_id: str | None = None,
-    location_data: dict | str | None = None
+    location_data: JsonDict = None
 ) -> dict:
     """
     Manage game locations with full CRUD operations. Locations form the world map of your adventure.
@@ -1568,7 +1568,7 @@ async def manage_location(
         session_id: The game session ID
         action: Operation to perform - "create", "read", "update", "delete", or "list"
         location_id: Required for read/update/delete operations. The unique ID of the location.
-        location_data: Required for create/update. Pass as a dictionary (not JSON string).
+        location_data: Required for create/update. Can be a dictionary or JSON string.
 
     Actions:
         - "create": Add a new location to the game world
@@ -1615,13 +1615,7 @@ async def manage_location(
     Returns:
         Dictionary with success status and relevant data based on action
     """
-    # Handle JSON string input if provided
-    if isinstance(location_data, str):
-        try:
-            location_data = json.loads(location_data)
-        except json.JSONDecodeError as e:
-            return {"error": f"Invalid JSON in location_data: {str(e)}. Please provide a valid dictionary or JSON string."}
-
+    # JSON strings are automatically parsed by the JsonDict type annotation
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
@@ -1698,7 +1692,7 @@ async def manage_item(
     session_id: str,
     action: str,
     item_id: str | None = None,
-    item_data: dict | str | None = None
+    item_data: JsonDict = None
 ) -> dict:
     """
     Manage game items with full CRUD operations. Items can exist in locations or player inventory.
@@ -1707,7 +1701,7 @@ async def manage_item(
         session_id: The game session ID
         action: Operation to perform - "create", "read", "update", "delete", or "list"
         item_id: Required for read/update/delete operations. The unique ID of the item.
-        item_data: Required for create/update. Pass as a dictionary (not JSON string).
+        item_data: Required for create/update. Can be a dictionary or JSON string.
 
     Actions:
         - "create": Add a new item to the game world
@@ -1764,13 +1758,7 @@ async def manage_item(
     Returns:
         Dictionary with success status and relevant data based on action
     """
-    # Handle JSON string input if provided
-    if isinstance(item_data, str):
-        try:
-            item_data = json.loads(item_data)
-        except json.JSONDecodeError as e:
-            return {"error": f"Invalid JSON in item_data: {str(e)}. Please provide a valid dictionary or JSON string."}
-
+    # JSON strings are automatically parsed by the JsonDict type annotation
     session = await db.get_session(session_id)
     if not session:
         return {"error": f"Session {session_id} not found"}
