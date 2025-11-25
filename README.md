@@ -22,8 +22,31 @@ An MCP (Model Context Protocol) server that enables AI agents to run interactive
   - **Batch Execution**: `execute_batch` allows performing multiple game actions in a single turn for efficiency
   - **Word Randomization**: Predefined or AI-generated word lists for dynamic names and descriptions
 - **Concise MCP Descriptions**: Optimized for AI context usage
-- **Web UI Dashboard**: Optional visual interface for managing adventures and game state
 - **Web UI Dashboard**: Visual interface for managing adventures, sessions, and game state (optional)
+
+## Installation
+
+### Quick Start with uvx
+
+The easiest way to use this MCP server is via `uvx`, which fetches and runs the package automatically:
+
+```bash
+# Run the MCP server
+uvx text-adventure-handler-mcp
+
+# With a custom database path
+uvx text-adventure-handler-mcp --db-path /path/to/adventure.db
+```
+
+### Install with pip/uv
+
+```bash
+# Using uv
+uv pip install text-adventure-handler-mcp
+
+# Using pip
+pip install text-adventure-handler-mcp
+```
 
 ## Web UI Interface
 
@@ -35,29 +58,37 @@ The project includes an optional web-based dashboard that provides a visual inte
 - Manage characters, locations, and items
 - Track game time and faction relationships
 
-**Note:** The Web UI requires Docker and the source code repository. It is not currently packaged with the PyPI distribution.
+**Note:** The Web UI requires Docker and is distributed separately from the PyPI package.
 
 ### Running the Web UI
 
-1.  **Clone the repository**:
+#### Option 1: Pre-built Docker Image (Recommended)
 
-    ```bash
-    git clone https://github.com/narrowstacks/text-adventure-handler-mcp.git
-    cd text-adventure-handler-mcp
-    ```
+The easiest way to run the Web UI:
 
-2.  **Start using the helper CLI**:
-    You can use the included CLI to start the Web UI and the server together (requires `uv`):
+```bash
+# Pull and run the pre-built image
+docker run -p 3000:80 \
+  -v ~/.text-adventure-handler/adventure_handler.db:/data/adventure.db:ro \
+  -e DB_PATH=/data/adventure.db \
+  ghcr.io/narrowstacks/text-adventure-handler-mcp:latest
+```
 
-    ```bash
-    uv run python -m adventure_handler --web-ui --open-browser
-    ```
+Or using Docker Compose (requires cloning the repo):
 
-3.  **Or manually with Docker Compose**:
-    ```bash
-    cd web
-    docker-compose up --build
-    ```
+```bash
+git clone https://github.com/narrowstacks/text-adventure-handler-mcp.git
+cd text-adventure-handler-mcp/web
+docker compose up
+```
+
+#### Option 2: Build from Source
+
+```bash
+git clone https://github.com/narrowstacks/text-adventure-handler-mcp.git
+cd text-adventure-handler-mcp/web
+docker compose -f docker-compose.dev.yml up --build
+```
 
 The dashboard will be available at [http://localhost:3000](http://localhost:3000).
 
@@ -69,28 +100,26 @@ If your database is located elsewhere, update the `HOST_DB_PATH` environment var
 
 ```bash
 export HOST_DB_PATH="/path/to/your/adventure_handler.db"
-cd web && docker-compose up
+cd web && docker compose up
 ```
 
 ### Development Mode
 
-For development without Docker:
+For local development without Docker:
 
 ```bash
 # Backend (port 3001)
 cd web/backend
-npm install
-npm run dev
+bun install
+bun run dev
 
 # Frontend (port 5173)
 cd web/frontend
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
-## Installation
-
-### Connecting to Claude Desktop
+## Claude Desktop Configuration
 
 To use this MCP server with Claude Desktop, configure it in your settings file:
 
