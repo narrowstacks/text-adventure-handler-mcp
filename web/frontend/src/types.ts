@@ -107,19 +107,33 @@ export interface GameSessionDetail {
     counts: Record<string, number>;
 }
 
+export interface DiceRollData {
+    type?: 'dice_roll';  // Optional for backwards compatibility
+    roll?: number;
+    modifier?: number;
+    total?: number;
+    dc?: number;
+    success?: boolean;
+    message?: string;
+}
+
+export interface SkillCheckData {
+    type: 'skill_check';
+    stat_value: number;
+    threshold: number;
+    margin: number;
+    success: boolean;
+    reason?: string;
+}
+
+export type ActionRollData = DiceRollData | SkillCheckData;
+
 export interface ActionHistory {
     id?: number;
     session_id: string;
     action_text: string;
     stat_used?: string;
-    dice_roll: {
-        roll?: number;
-        modifier?: number;
-        total?: number;
-        dc?: number;
-        success?: boolean;
-        message?: string;
-    };
+    dice_roll: ActionRollData;
     outcome?: string;
     score_change?: number;
     timestamp: string;

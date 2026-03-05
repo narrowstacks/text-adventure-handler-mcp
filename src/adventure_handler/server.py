@@ -763,6 +763,101 @@ async def roll_check(session_id: str, stat_name: str = None, difficulty_class: i
 
 
 @mcp.tool()
+async def skill_check(
+    session_id: str,
+    action: str,
+    stat_name: str,
+    threshold: int,
+    reason: str = None
+) -> dict:
+    """
+    Resolve an action based purely on the player's stat value vs a threshold—no dice roll.
+    Use for conversations, knowledge checks, or situations where the outcome should reflect
+    the character's established abilities rather than chance. Think Fallout-style skill checks
+    where having 75 Speech automatically unlocks a dialogue option.
+
+    Best for:
+    - Dialogue and persuasion where character growth should feel rewarding
+    - Knowledge/lore checks ("Do I recognize this symbol?")
+    - Skill gates that reward player investment in stats
+    - Moments where dramatic tension isn't needed
+
+    Prefer dice-based take_action/roll_check when:
+    - Uncertainty adds excitement (combat, risky stunts)
+    - Failure would create interesting story beats
+    - The action has real stakes and drama
+
+    Args:
+        action: Description of what the player is attempting
+        stat_name: Which stat to check (case-insensitive)
+        threshold: Minimum stat value required for success
+        reason: Optional context for why this threshold (for history log)
+    """
+    session = await db.get_session(session_id)
+    if not session:
+        return {"error": f"Session {session_id} not found"}
+
+    # Case-insensitive stat lookup
+    stat_key = next(
+        (k for k in session.state.stats.keys() if k.lower() == stat_name.lower()),
+        None
+    )
+    if not stat_key:
+        return {"error": f"Stat '{stat_name}' not found in this adventure"}
+
+    stat_value = session.state.stats[stat_key]
+    success = stat_value >= threshold
+    margin = stat_value - threshold
+
+    # Record action to history
+    from .models import Action as ActionModel
+    from datetime import datetime
+
+    action_record = ActionModel(
+        session_id=session_id,
+        action_text=action,
+        stat_used=stat_key,
+        difficulty_class=threshold,
+        timestamp=datetime.now()
+    )
+
+    # Store skill check data in dice_roll field for frontend display
+    skill_check_data = {
+        "type": "skill_check",
+        "stat_value": stat_value,
+        "threshold": threshold,
+        "margin": margin,
+        "success": success,
+        "reason": reason
+    }
+
+    score_delta = 10 if success else 0
+    session.state.score += score_delta
+    await db.update_player_state(session_id, session.state)
+
+    await db.add_action(
+        session_id,
+        action_record,
+        "Success" if success else "Failure",
+        score_delta,
+        dice_roll=skill_check_data
+    )
+
+    return {
+        "session_id": session_id,
+        "action": action,
+        "success": success,
+        "stat_name": stat_key,
+        "stat_value": stat_value,
+        "threshold": threshold,
+        "margin": margin,
+        "score_change": score_delta,
+        "new_score": session.state.score,
+        "prompt": f"The player's {stat_key} of {stat_value} {'meets or exceeds' if success else 'falls short of'} the threshold of {threshold}. Narrate the {'successful' if success else 'failed'} outcome for: {action}"
+    }
+
+
+@mcp.tool()
 async def modify_state(
     session_id: str,
     action: str,

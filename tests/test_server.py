@@ -6,6 +6,7 @@ from adventure_handler.server import (
     start_adventure,
     take_action,
     modify_state,
+    skill_check,
     db as server_db
 )
 
@@ -221,3 +222,209 @@ async def test_modify_state_location(mock_db):
         assert result["action"] == "location"
         assert result["new_location"] == "Town Square"
         assert session.state.location == "Town Square"
+
+
+# ============ skill_check tests ============
+
+@pytest.mark.asyncio
+async def test_skill_check_success(mock_db):
+    """Test skill_check when stat meets threshold."""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Tavern",
+                stats={"Charisma": 15},
+                score=0
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        result = await skill_check.fn(
+            session_id="sess1",
+            action="Persuade the guard to let you pass",
+            stat_name="Charisma",
+            threshold=12
+        )
+
+        assert result["success"] is True
+        assert result["stat_name"] == "Charisma"
+        assert result["stat_value"] == 15
+        assert result["threshold"] == 12
+        assert result["margin"] == 3  # 15 - 12
+        assert result["score_change"] == 10
+        assert result["new_score"] == 10
+
+
+@pytest.mark.asyncio
+async def test_skill_check_failure(mock_db):
+    """Test skill_check when stat is below threshold."""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Library",
+                stats={"Intelligence": 8},
+                score=50
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        result = await skill_check.fn(
+            session_id="sess1",
+            action="Decipher the ancient runes",
+            stat_name="Intelligence",
+            threshold=14
+        )
+
+        assert result["success"] is False
+        assert result["stat_value"] == 8
+        assert result["threshold"] == 14
+        assert result["margin"] == -6  # 8 - 14
+        assert result["score_change"] == 0
+        assert result["new_score"] == 50  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_skill_check_exact_threshold(mock_db):
+    """Test skill_check when stat exactly matches threshold (should pass)."""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Gate",
+                stats={"Strength": 14},
+                score=0
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        result = await skill_check.fn(
+            session_id="sess1",
+            action="Force open the rusty door",
+            stat_name="Strength",
+            threshold=14
+        )
+
+        assert result["success"] is True
+        assert result["margin"] == 0  # Exactly at threshold
+
+
+@pytest.mark.asyncio
+async def test_skill_check_invalid_stat(mock_db):
+    """Test skill_check with non-existent stat returns error."""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Start",
+                stats={"Strength": 10}
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        result = await skill_check.fn(
+            session_id="sess1",
+            action="Cast a spell",
+            stat_name="Magic",
+            threshold=10
+        )
+
+        assert "error" in result
+        assert "Magic" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_skill_check_case_insensitive(mock_db):
+    """Test skill_check stat lookup is case-insensitive."""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Market",
+                stats={"Charisma": 16},
+                score=0
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        # Use lowercase stat name
+        result = await skill_check.fn(
+            session_id="sess1",
+            action="Haggle for a better price",
+            stat_name="charisma",  # lowercase
+            threshold=12
+        )
+
+        assert result["success"] is True
+        assert result["stat_name"] == "Charisma"  # Returns proper case
+
+
+@pytest.mark.asyncio
+async def test_skill_check_logs_action(mock_db):
+    """Test skill_check logs action to history."""
+    with patch("adventure_handler.server.db", mock_db):
+        from datetime import datetime
+        session = GameSession(
+            id="sess1",
+            adventure_id="adv1",
+            created_at=datetime.now(),
+            last_played=datetime.now(),
+            state=PlayerState(
+                session_id="sess1",
+                location="Dungeon",
+                stats={"Wisdom": 12},
+                score=0
+            )
+        )
+        mock_db.get_session.return_value = session
+
+        await skill_check.fn(
+            session_id="sess1",
+            action="Sense the trap",
+            stat_name="Wisdom",
+            threshold=10,
+            reason="Detecting hidden traps"
+        )
+
+        # Verify add_action was called
+        mock_db.add_action.assert_called_once()
+        call_args = mock_db.add_action.call_args
+        assert call_args[0][0] == "sess1"  # session_id
+        assert "Sense the trap" in call_args[0][1].action_text
+        assert "Success" in call_args[0][2]  # outcome
+
+        # Verify skill check data is stored in dice_roll field
+        dice_roll_data = call_args.kwargs.get("dice_roll")
+        assert dice_roll_data is not None
+        assert dice_roll_data["type"] == "skill_check"
+        assert dice_roll_data["stat_value"] == 12
+        assert dice_roll_data["threshold"] == 10
+        assert dice_roll_data["margin"] == 2
+        assert dice_roll_data["success"] is True
+        assert dice_roll_data["reason"] == "Detecting hidden traps"

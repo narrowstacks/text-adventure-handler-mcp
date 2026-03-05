@@ -1,8 +1,19 @@
 import { Box, Typography, Paper, Stack } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { ActionHistory } from '../types';
+import type { ActionHistory, SkillCheckData, DiceRollData } from '../types';
 import DiceRoll from './DiceRoll';
+import SkillCheck from './SkillCheck';
 import { useReducedMotion, listItemEntrance } from '../utils/animations';
+
+// Type guard to check if the roll data is a skill check
+function isSkillCheck(data: ActionHistory['dice_roll']): data is SkillCheckData {
+    return data && 'type' in data && data.type === 'skill_check';
+}
+
+// Type guard to check if the roll data is a dice roll
+function isDiceRoll(data: ActionHistory['dice_roll']): data is DiceRollData {
+    return data && 'roll' in data && typeof data.roll === 'number';
+}
 
 interface HistoryLogProps {
     history: ActionHistory[];
@@ -15,8 +26,12 @@ export default function HistoryLog({ history }: HistoryLogProps) {
         <Box sx={{ maxHeight: '60vh', overflowY: 'auto', pr: 1 }}>
             <AnimatePresence mode="popLayout">
                 {history.map((entry, index) => {
-                    const isCritical = entry.dice_roll?.roll === 20 || entry.dice_roll?.roll === 1;
-                    const isSuccess = entry.dice_roll?.success;
+                    const rollData = entry.dice_roll;
+                    const isSkillCheckEntry = isSkillCheck(rollData);
+                    const isDiceRollEntry = isDiceRoll(rollData);
+
+                    const isCritical = isDiceRollEntry && (rollData.roll === 20 || rollData.roll === 1);
+                    const isSuccess = rollData?.success;
 
                     return (
                         <motion.div
@@ -33,10 +48,14 @@ export default function HistoryLog({ history }: HistoryLogProps) {
                                     mb: 1.5,
                                     p: 1.5,
                                     background: isCritical
-                                        ? entry.dice_roll?.roll === 20
+                                        ? isDiceRollEntry && rollData.roll === 20
                                             ? 'linear-gradient(135deg, rgba(124,231,194,0.12), rgba(124,231,194,0.04))'
                                             : 'linear-gradient(135deg, rgba(255,107,107,0.12), rgba(255,107,107,0.04))'
-                                        : 'linear-gradient(135deg, rgba(124,231,194,0.04), rgba(255,138,167,0.04))',
+                                        : isSkillCheckEntry
+                                          ? isSuccess
+                                              ? 'linear-gradient(135deg, rgba(124,231,194,0.08), rgba(124,231,194,0.02))'
+                                              : 'linear-gradient(135deg, rgba(255,107,107,0.08), rgba(255,107,107,0.02))'
+                                          : 'linear-gradient(135deg, rgba(124,231,194,0.04), rgba(255,138,167,0.04))',
                                     borderLeft: '3px solid',
                                     borderColor: isSuccess === undefined
                                         ? 'secondary.main'
@@ -58,14 +77,27 @@ export default function HistoryLog({ history }: HistoryLogProps) {
                                     </Typography>
                                 </Stack>
 
-                                {entry.dice_roll?.roll && (
+                                {isSkillCheckEntry && (
+                                    <Box sx={{ my: 1 }}>
+                                        <SkillCheck
+                                            statValue={rollData.stat_value}
+                                            threshold={rollData.threshold}
+                                            margin={rollData.margin}
+                                            success={rollData.success}
+                                            statUsed={entry.stat_used}
+                                            reason={rollData.reason}
+                                        />
+                                    </Box>
+                                )}
+
+                                {isDiceRollEntry && (
                                     <Box sx={{ my: 1 }}>
                                         <DiceRoll
-                                            roll={entry.dice_roll.roll}
-                                            total={entry.dice_roll.total ?? entry.dice_roll.roll}
-                                            modifier={entry.dice_roll.modifier}
-                                            dc={entry.dice_roll.dc}
-                                            success={entry.dice_roll.success}
+                                            roll={rollData.roll!}
+                                            total={rollData.total ?? rollData.roll!}
+                                            modifier={rollData.modifier}
+                                            dc={rollData.dc}
+                                            success={rollData.success}
                                             statUsed={entry.stat_used}
                                         />
                                     </Box>
